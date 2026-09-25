@@ -71,28 +71,28 @@ runs:
     - name: Repository-specific setup
       if: inputs.setup_command != ''
       shell: bash
-      working_directory: ${{ inputs.working_directory }}
+      working-directory: ${{ inputs.working_directory }}
       env:
         NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
       run: ${{ inputs.setup_command }}
 
     - name: Restore
       shell: bash
-      working_directory: ${{ inputs.working_directory }}
+      working-directory: ${{ inputs.working_directory }}
       env:
         NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
       run: ${{ inputs.restore_command }}
 
     - name: Build
       shell: bash
-      working_directory: ${{ inputs.working_directory }}
+      working-directory: ${{ inputs.working_directory }}
       env:
         NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
       run: ${{ inputs.build_command }}
 
     - name: Test
       shell: bash
-      working_directory: ${{ inputs.working_directory }}
+      working-directory: ${{ inputs.working_directory }}
       env:
         NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
       run: ${{ inputs.test_command }}
