@@ -43,7 +43,10 @@ jobs:
       ref: ${{ github.sha }}
       global_json_file: ''
       dotnet_version: '10.0.x'
-      headless_enabled: false
+      headless_enabled: true
+      headless_restore_command: echo restore-ok
+      headless_build_command: echo build-ok
+      headless_test_command: echo test-ok
       android_enabled: false
       windows_enabled: false
     permissions:
