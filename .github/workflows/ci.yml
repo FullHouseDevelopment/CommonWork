@@ -24,6 +24,31 @@ jobs:
     permissions:
       contents: read
 
+  godot-profile-selftest:
+    name: Godot profile self-test
+    uses: $/.github/workflows/profile-godot.yml
+    with:
+      ref: ${{ github.sha }}
+      godot_version: '4.7.2'
+      dotnet: false
+      editor_import: false
+      runtime_smoke: false
+    permissions:
+      contents: read
+
+  maui-profile-selftest:
+    name: MAUI profile wiring self-test
+    uses: $/.github/workflows/profile-maui.yml
+    with:
+      ref: ${{ github.sha }}
+      global_json_file: ''
+      dotnet_version: '10.0.x'
+      headless_enabled: false
+      android_enabled: false
+      windows_enabled: false
+    permissions:
+      contents: read
+
   action-tests:
     name: Shared action tests
     runs-on: ubuntu-latest
