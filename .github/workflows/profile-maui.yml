@@ -164,7 +164,7 @@ jobs:
   headless:
     name: MAUI shared/headless
     if: inputs.headless_enabled
-    uses: $/.github/workflows/profile-dotnet.yml
+    uses: ./.github/workflows/profile-dotnet.yml
     with:
       ref: ${{ inputs.ref }}
       runner: ${{ inputs.headless_runner }}
@@ -184,7 +184,7 @@ jobs:
   android:
     name: MAUI Android
     if: inputs.android_enabled && inputs.android_runtime_smoke_command == ''
-    uses: $/.github/workflows/profile-dotnet.yml
+    uses: ./.github/workflows/profile-dotnet.yml
     with:
       ref: ${{ inputs.ref }}
       runner: ${{ inputs.android_runner }}
@@ -301,7 +301,7 @@ jobs:
   windows:
     name: MAUI Windows
     if: inputs.windows_enabled
-    uses: $/.github/workflows/profile-dotnet.yml
+    uses: ./.github/workflows/profile-dotnet.yml
     with:
       ref: ${{ inputs.ref }}
       runner: ${{ inputs.windows_runner }}
