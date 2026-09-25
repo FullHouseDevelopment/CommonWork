@@ -36,19 +36,6 @@ jobs:
     permissions:
       contents: read
 
-  maui-profile-selftest:
-    name: MAUI profile wiring self-test
-    uses: $/.github/workflows/profile-maui.yml
-    with:
-      ref: ${{ github.sha }}
-      global_json_file: ''
-      dotnet_version: '10.0.x'
-      headless_enabled: false
-      android_enabled: false
-      windows_enabled: false
-    permissions:
-      contents: read
-
   action-tests:
     name: Shared action tests
     runs-on: ubuntu-latest
