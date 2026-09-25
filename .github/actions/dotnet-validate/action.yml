@@ -1,0 +1,107 @@
+name: Shared .NET validation steps
+description: Run setup, restore, build, test, and optional result upload on an already-selected runner.
+inputs:
+  global-json-file:
+    required: false
+    default: global.json
+  dotnet-version:
+    required: false
+    default: ''
+  cache:
+    required: false
+    default: 'false'
+  cache-dependency-path:
+    required: false
+    default: ''
+  working-directory:
+    required: false
+    default: '.'
+  setup-command:
+    required: false
+    default: ''
+  restore-command:
+    required: true
+  build-command:
+    required: true
+  test-command:
+    required: true
+  test-results-path:
+    required: false
+    default: ''
+  artifact-name:
+    required: false
+    default: dotnet-test-results
+  artifact-retention-days:
+    required: false
+    default: '14'
+  nuget-token:
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Set up .NET from global.json
+      if: inputs.global-json-file != '' && inputs.cache != 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        global-json-file: ${{ inputs.global-json-file }}
+
+    - name: Set up .NET version
+      if: inputs.global-json-file == '' && inputs.cache != 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Set up .NET from global.json with NuGet cache
+      if: inputs.global-json-file != '' && inputs.cache == 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        global-json-file: ${{ inputs.global-json-file }}
+        cache: true
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Set up .NET version with NuGet cache
+      if: inputs.global-json-file == '' && inputs.cache == 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        cache: true
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Repository-specific setup
+      if: inputs.setup-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
+      run: ${{ inputs.setup-command }}
+
+    - name: Restore
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
+      run: ${{ inputs.restore-command }}
+
+    - name: Build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
+      run: ${{ inputs.build-command }}
+
+    - name: Test
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
+      run: ${{ inputs.test-command }}
+
+    - name: Require and upload test results
+      if: inputs.test-results-path != '' && always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.test-results-path }}
+        if-no-files-found: error
+        retention-days: ${{ inputs.artifact-retention-days }}
