@@ -48,6 +48,7 @@ jobs:
       windows_enabled: false
     permissions:
       contents: read
+      packages: read
 
   action-tests:
     name: Shared action tests
