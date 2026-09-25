@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: common-work-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  action-tests:
+    name: Shared action tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+
+      - name: Run version-policy tests
+        run: node --test .github/actions/version-policy/index.test.js
+
+      - name: Run workflow-policy tests
+        run: node --test .github/actions/workflow-policy/index.test.js
+
+  workflow-lint:
+    name: Workflow lint and immutable refs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        shell: bash
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          export GOBIN="$RUNNER_TEMP/actionlint-bin"
+          mkdir -p "$GOBIN"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+          "$GOBIN/actionlint" -version
+
+      - name: Lint workflows
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/actionlint-bin/actionlint" -color
+
+      - name: Require immutable external action refs
+        shell: python
+        run: |
+          import pathlib
+          import re
+          import sys
+
+          full_sha = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
+          errors = []
+          for path in pathlib.Path(".github/workflows").glob("*.y*ml"):
+              for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  match = re.search(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", line)
+                  if not match:
+                      continue
+                  ref = match.group(1).strip("'\"")
+                  if ref.startswith("./") or ref.startswith("$/") or ref.startswith("docker://"):
+                      continue
+                  if "@" not in ref or not full_sha.fullmatch(ref.rsplit("@", 1)[1]):
+                      errors.append(f"{path}:{line_number}: {ref}")
+          if errors:
+              print("External actions/workflows must be pinned to full commit SHAs:", file=sys.stderr)
+              print("\n".join(errors), file=sys.stderr)
+              raise SystemExit(1)
