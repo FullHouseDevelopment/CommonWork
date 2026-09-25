@@ -1,0 +1,261 @@
+name: Reusable CI profile - Godot
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact caller ref/SHA to validate
+        required: false
+        type: string
+        default: ''
+      godot_version:
+        description: Godot version, e.g. 4.7.2
+        required: false
+        type: string
+        default: '4.7.2'
+      dotnet:
+        description: Use the Godot .NET/Mono editor build
+        required: false
+        type: boolean
+        default: false
+      dotnet_version:
+        description: Optional .NET SDK version/range for Godot C# projects
+        required: false
+        type: string
+        default: ''
+      working_directory:
+        description: Godot project directory
+        required: false
+        type: string
+        default: '.'
+      setup_command:
+        description: Optional caller-specific setup before validation/export
+        required: false
+        type: string
+        default: ''
+      dotnet_build_command:
+        description: Optional caller-specific .NET build command
+        required: false
+        type: string
+        default: ''
+      editor_import:
+        description: Open/import the project headlessly in the editor
+        required: false
+        type: boolean
+        default: true
+      runtime_smoke:
+        description: Run the main scene headlessly after import
+        required: false
+        type: boolean
+        default: false
+      runtime_seconds:
+        description: Headless runtime-smoke duration
+        required: false
+        type: number
+        default: 3
+      export_preset:
+        description: Optional Godot export preset name
+        required: false
+        type: string
+        default: ''
+      export_output:
+        description: Output path for export_preset; required when export_preset is set
+        required: false
+        type: string
+        default: ''
+      export_debug:
+        description: Use --export-debug instead of --export-release
+        required: false
+        type: boolean
+        default: true
+      upload_artifact:
+        description: Upload export_output as a workflow artifact
+        required: false
+        type: boolean
+        default: false
+      artifact_name:
+        description: Artifact name when upload_artifact is enabled
+        required: false
+        type: string
+        default: godot-export
+      artifact_retention_days:
+        description: Artifact retention in days
+        required: false
+        type: number
+        default: 14
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Godot ${{ inputs.godot_version }} ${{ inputs.dotnet && '.NET' || 'Standard' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out caller repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up .NET
+        if: inputs.dotnet && inputs.dotnet_version != ''
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - name: Resolve Godot download
+        id: godot
+        shell: bash
+        env:
+          GODOT_VERSION: ${{ inputs.godot_version }}
+          GODOT_DOTNET: ${{ inputs.dotnet }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/godot.zip"
+          install_dir="$RUNNER_TEMP/godot"
+          mkdir -p "$install_dir"
+
+          if [[ "$GODOT_DOTNET" == "true" ]]; then
+            editor_archive="Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64.zip"
+            editor_binary="Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64"
+            templates_archive="Godot_v${GODOT_VERSION}-stable_mono_export_templates.tpz"
+          else
+            editor_archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+            editor_binary="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+            templates_archive="Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          fi
+
+          base="https://godot-releases.nbg1.your-objectstorage.com/${GODOT_VERSION}-stable"
+          curl -fL --retry 3 "$base/$editor_archive" -o "$archive"
+          unzip -q "$archive" -d "$install_dir"
+          godot="$(find "$install_dir" -type f -name "$editor_binary" -print -quit)"
+          test -n "$godot"
+          chmod +x "$godot"
+
+          {
+            echo "binary=$godot"
+            echo "templates_url=$base/$templates_archive"
+            echo "template_dir=${GODOT_VERSION}.stable$([[ "$GODOT_DOTNET" == "true" ]] && echo '.mono')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Caller-specific setup
+        if: inputs.setup_command != ''
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.setup_command }}
+
+      - name: Build Godot .NET project
+        if: inputs.dotnet && inputs.dotnet_build_command != ''
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.dotnet_build_command }}
+
+      - name: Import project in editor
+        if: inputs.editor_import
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          GODOT: ${{ steps.godot.outputs.binary }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/godot-editor.log"
+          set +e
+          "$GODOT" --headless --path . --editor --quit 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            exit "$status"
+          fi
+          if grep -Eiq 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:.*(script|resource)' "$log"; then
+            echo "Godot reported a script/resource validation error." >&2
+            exit 1
+          fi
+
+      - name: Run headless runtime smoke
+        if: inputs.runtime_smoke
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          GODOT: ${{ steps.godot.outputs.binary }}
+          RUNTIME_SECONDS: ${{ inputs.runtime_seconds }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/godot-runtime.log"
+          set +e
+          "$GODOT" --headless --path . --quit-after "$RUNTIME_SECONDS" 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            exit "$status"
+          fi
+          if grep -Eiq 'Unhandled exception|System\.[A-Za-z]+Exception|SCRIPT ERROR|ERROR:.*(script|resource)' "$log"; then
+            echo "Godot runtime smoke reported an error." >&2
+            exit 1
+          fi
+
+      - name: Install matching export templates
+        if: inputs.export_preset != ''
+        shell: bash
+        env:
+          TEMPLATES_URL: ${{ steps.godot.outputs.templates_url }}
+          TEMPLATE_DIR: ${{ steps.godot.outputs.template_dir }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/godot-templates.tpz"
+          unpacked="$RUNNER_TEMP/godot-templates"
+          target="$HOME/.local/share/godot/export_templates/$TEMPLATE_DIR"
+          curl -fL --retry 3 "$TEMPLATES_URL" -o "$archive"
+          mkdir -p "$unpacked" "$target"
+          unzip -q "$archive" -d "$unpacked"
+          cp -R "$unpacked/templates/." "$target/"
+
+      - name: Export project
+        if: inputs.export_preset != ''
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          GODOT: ${{ steps.godot.outputs.binary }}
+          PRESET: ${{ inputs.export_preset }}
+          OUTPUT: ${{ inputs.export_output }}
+          EXPORT_DEBUG: ${{ inputs.export_debug }}
+        run: |
+          set -euo pipefail
+          [[ -n "$OUTPUT" ]] || {
+            echo "export_output is required when export_preset is configured." >&2
+            exit 2
+          }
+          mkdir -p "$(dirname "$OUTPUT")"
+          if [[ "$EXPORT_DEBUG" == "true" ]]; then
+            mode="--export-debug"
+          else
+            mode="--export-release"
+          fi
+          "$GODOT" --headless --path . "$mode" "$PRESET" "$OUTPUT"
+          test -s "$OUTPUT"
+
+      - name: Upload export artifact
+        if: inputs.export_preset != '' && inputs.upload_artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ inputs.working_directory }}/${{ inputs.export_output }}
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact_retention_days }}
+
+      - name: Summarize Godot profile
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Shared Godot CI profile"
+            echo
+            echo "- Godot: \`${{ inputs.godot_version }}\`"
+            echo "- .NET editor: \`${{ inputs.dotnet }}\`"
+            echo "- Editor import: \`${{ inputs.editor_import }}\`"
+            echo "- Runtime smoke: \`${{ inputs.runtime_smoke }}\`"
+            echo "- Export preset: \`${{ inputs.export_preset || '(none)' }}\`"
+            echo "- Upload export: \`${{ inputs.upload_artifact }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
