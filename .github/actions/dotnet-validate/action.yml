@@ -1,107 +1,107 @@
 name: Shared .NET validation steps
 description: Run setup, restore, build, test, and optional result upload on an already-selected runner.
 inputs:
-  global-json-file:
+  global_json_file:
     required: false
     default: global.json
-  dotnet-version:
+  dotnet_version:
     required: false
     default: ''
   cache:
     required: false
     default: 'false'
-  cache-dependency-path:
+  cache_dependency_path:
     required: false
     default: ''
-  working-directory:
+  working_directory:
     required: false
     default: '.'
-  setup-command:
+  setup_command:
     required: false
     default: ''
-  restore-command:
+  restore_command:
     required: true
-  build-command:
+  build_command:
     required: true
-  test-command:
+  test_command:
     required: true
-  test-results-path:
+  test_results_path:
     required: false
     default: ''
-  artifact-name:
+  artifact_name:
     required: false
     default: dotnet-test-results
-  artifact-retention-days:
+  artifact_retention_days:
     required: false
     default: '14'
-  nuget-token:
+  nuget_token:
     required: false
     default: ''
 runs:
   using: composite
   steps:
     - name: Set up .NET from global.json
-      if: inputs.global-json-file != '' && inputs.cache != 'true'
+      if: inputs.global_json_file != '' && inputs.cache != 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
       with:
-        global-json-file: ${{ inputs.global-json-file }}
+        global_json_file: ${{ inputs.global_json_file }}
 
     - name: Set up .NET version
-      if: inputs.global-json-file == '' && inputs.cache != 'true'
+      if: inputs.global_json_file == '' && inputs.cache != 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
       with:
-        dotnet-version: ${{ inputs.dotnet-version }}
+        dotnet_version: ${{ inputs.dotnet_version }}
 
     - name: Set up .NET from global.json with NuGet cache
-      if: inputs.global-json-file != '' && inputs.cache == 'true'
+      if: inputs.global_json_file != '' && inputs.cache == 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
       with:
-        global-json-file: ${{ inputs.global-json-file }}
+        global_json_file: ${{ inputs.global_json_file }}
         cache: true
-        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+        cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
     - name: Set up .NET version with NuGet cache
-      if: inputs.global-json-file == '' && inputs.cache == 'true'
+      if: inputs.global_json_file == '' && inputs.cache == 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
       with:
-        dotnet-version: ${{ inputs.dotnet-version }}
+        dotnet_version: ${{ inputs.dotnet_version }}
         cache: true
-        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+        cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
     - name: Repository-specific setup
-      if: inputs.setup-command != ''
+      if: inputs.setup_command != ''
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working_directory: ${{ inputs.working_directory }}
       env:
-        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
-      run: ${{ inputs.setup-command }}
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
+      run: ${{ inputs.setup_command }}
 
     - name: Restore
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working_directory: ${{ inputs.working_directory }}
       env:
-        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
-      run: ${{ inputs.restore-command }}
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
+      run: ${{ inputs.restore_command }}
 
     - name: Build
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working_directory: ${{ inputs.working_directory }}
       env:
-        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
-      run: ${{ inputs.build-command }}
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
+      run: ${{ inputs.build_command }}
 
     - name: Test
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working_directory: ${{ inputs.working_directory }}
       env:
-        NUGET_AUTH_TOKEN: ${{ inputs.nuget-token }}
-      run: ${{ inputs.test-command }}
+        NUGET_AUTH_TOKEN: ${{ inputs.nuget_token }}
+      run: ${{ inputs.test_command }}
 
     - name: Require and upload test results
-      if: inputs.test-results-path != '' && always()
+      if: inputs.test_results_path != '' && always()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
-        name: ${{ inputs.artifact-name }}
-        path: ${{ inputs.test-results-path }}
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.test_results_path }}
         if-no-files-found: error
-        retention-days: ${{ inputs.artifact-retention-days }}
+        retention-days: ${{ inputs.artifact_retention_days }}
