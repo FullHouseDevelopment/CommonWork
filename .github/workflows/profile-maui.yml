@@ -164,52 +164,42 @@ jobs:
   headless:
     name: MAUI shared/headless
     if: inputs.headless_enabled
-    runs-on: ${{ inputs.headless_runner }}
-    steps:
-      - name: Check out caller repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-
-      - name: Validate shared/headless .NET surface
-        uses: $/.github/actions/dotnet-validate
-        with:
-          global_json_file: ${{ inputs.global_json_file }}
-          dotnet_version: ${{ inputs.dotnet_version }}
-          cache: ${{ inputs.cache }}
-          cache_dependency_path: ${{ inputs.cache_dependency_path }}
-          setup_command: ${{ inputs.headless_setup_command }}
-          restore_command: ${{ inputs.headless_restore_command }}
-          build_command: ${{ inputs.headless_build_command }}
-          test_command: ${{ inputs.headless_test_command }}
-          test_results_path: ${{ inputs.headless_test_results_path }}
-          artifact_name: maui-headless-results-${{ inputs.headless_runner }}
-          nuget_token: ${{ secrets.nuget_token }}
+    uses: $/.github/workflows/profile-dotnet.yml
+    with:
+      ref: ${{ inputs.ref }}
+      runner: ${{ inputs.headless_runner }}
+      global_json_file: ${{ inputs.global_json_file }}
+      dotnet_version: ${{ inputs.dotnet_version }}
+      cache: ${{ inputs.cache }}
+      cache_dependency_path: ${{ inputs.cache_dependency_path }}
+      setup_command: ${{ inputs.headless_setup_command }}
+      restore_command: ${{ inputs.headless_restore_command }}
+      build_command: ${{ inputs.headless_build_command }}
+      test_command: ${{ inputs.headless_test_command }}
+      test_results_path: ${{ inputs.headless_test_results_path }}
+      artifact_name: maui-headless-results
+    secrets:
+      nuget_token: ${{ secrets.nuget_token }}
 
   android:
     name: MAUI Android
     if: inputs.android_enabled && inputs.android_runtime_smoke_command == ''
-    runs-on: ${{ inputs.android_runner }}
-    steps:
-      - name: Check out caller repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-
-      - name: Validate Android .NET surface
-        uses: $/.github/actions/dotnet-validate
-        with:
-          global_json_file: ${{ inputs.global_json_file }}
-          dotnet_version: ${{ inputs.dotnet_version }}
-          cache: ${{ inputs.cache }}
-          cache_dependency_path: ${{ inputs.cache_dependency_path }}
-          setup_command: ${{ inputs.android_setup_command }}
-          restore_command: ${{ inputs.android_restore_command }}
-          build_command: ${{ inputs.android_build_command }}
-          test_command: ${{ inputs.android_test_command }}
-          test_results_path: ${{ inputs.android_test_results_path }}
-          artifact_name: maui-android-results-${{ inputs.android_runner }}
-          nuget_token: ${{ secrets.nuget_token }}
+    uses: $/.github/workflows/profile-dotnet.yml
+    with:
+      ref: ${{ inputs.ref }}
+      runner: ${{ inputs.android_runner }}
+      global_json_file: ${{ inputs.global_json_file }}
+      dotnet_version: ${{ inputs.dotnet_version }}
+      cache: ${{ inputs.cache }}
+      cache_dependency_path: ${{ inputs.cache_dependency_path }}
+      setup_command: ${{ inputs.android_setup_command }}
+      restore_command: ${{ inputs.android_restore_command }}
+      build_command: ${{ inputs.android_build_command }}
+      test_command: ${{ inputs.android_test_command }}
+      test_results_path: ${{ inputs.android_test_results_path }}
+      artifact_name: maui-android-results
+    secrets:
+      nuget_token: ${{ secrets.nuget_token }}
 
   android-runtime:
     name: MAUI Android runtime smoke
@@ -221,41 +211,41 @@ jobs:
 
     steps:
       - name: Check out caller repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Set up .NET from global.json
         if: inputs.global_json_file != '' && !inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global_json_file: ${{ inputs.global_json_file }}
+          global-json-file: ${{ inputs.global_json_file }}
 
       - name: Set up .NET version
         if: inputs.global_json_file == '' && !inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet_version: ${{ inputs.dotnet_version }}
+          dotnet-version: ${{ inputs.dotnet_version }}
 
       - name: Set up .NET from global.json with NuGet cache
         if: inputs.global_json_file != '' && inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global_json_file: ${{ inputs.global_json_file }}
+          global-json-file: ${{ inputs.global_json_file }}
           cache: true
-          cache_dependency_path: ${{ inputs.cache_dependency_path }}
+          cache-dependency-path: ${{ inputs.cache_dependency_path }}
 
       - name: Set up .NET version with NuGet cache
         if: inputs.global_json_file == '' && inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet_version: ${{ inputs.dotnet_version }}
+          dotnet-version: ${{ inputs.dotnet_version }}
           cache: true
-          cache_dependency_path: ${{ inputs.cache_dependency_path }}
+          cache-dependency-path: ${{ inputs.cache_dependency_path }}
 
       - name: Set up JDK for runtime smoke
         if: inputs.android_runtime_java_version != ''
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: ${{ inputs.android_runtime_java_distribution }}
           java-version: ${{ inputs.android_runtime_java_version }}
@@ -288,7 +278,7 @@ jobs:
 
       - name: Require and upload Android test results
         if: inputs.android_test_results_path != '' && always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: maui-android-results-${{ inputs.android_runner }}
           path: ${{ inputs.android_test_results_path }}
@@ -311,24 +301,19 @@ jobs:
   windows:
     name: MAUI Windows
     if: inputs.windows_enabled
-    runs-on: ${{ inputs.windows_runner }}
-    steps:
-      - name: Check out caller repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-
-      - name: Validate Windows .NET surface
-        uses: $/.github/actions/dotnet-validate
-        with:
-          global_json_file: ${{ inputs.global_json_file }}
-          dotnet_version: ${{ inputs.dotnet_version }}
-          cache: ${{ inputs.cache }}
-          cache_dependency_path: ${{ inputs.cache_dependency_path }}
-          setup_command: ${{ inputs.windows_setup_command }}
-          restore_command: ${{ inputs.windows_restore_command }}
-          build_command: ${{ inputs.windows_build_command }}
-          test_command: ${{ inputs.windows_test_command }}
-          test_results_path: ${{ inputs.windows_test_results_path }}
-          artifact_name: maui-windows-results-${{ inputs.windows_runner }}
-          nuget_token: ${{ secrets.nuget_token }}
+    uses: $/.github/workflows/profile-dotnet.yml
+    with:
+      ref: ${{ inputs.ref }}
+      runner: ${{ inputs.windows_runner }}
+      global_json_file: ${{ inputs.global_json_file }}
+      dotnet_version: ${{ inputs.dotnet_version }}
+      cache: ${{ inputs.cache }}
+      cache_dependency_path: ${{ inputs.cache_dependency_path }}
+      setup_command: ${{ inputs.windows_setup_command }}
+      restore_command: ${{ inputs.windows_restore_command }}
+      build_command: ${{ inputs.windows_build_command }}
+      test_command: ${{ inputs.windows_test_command }}
+      test_results_path: ${{ inputs.windows_test_results_path }}
+      artifact_name: maui-windows-results
+    secrets:
+      nuget_token: ${{ secrets.nuget_token }}
