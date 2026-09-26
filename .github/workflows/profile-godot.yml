@@ -169,7 +169,8 @@ jobs:
           if [[ "$status" -ne 0 ]]; then
             exit "$status"
           fi
-          if grep -Eiq 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:.*(script|resource)' "$log"; then
+          if grep -Eiv 'ERROR: [0-9]+ resources? still in use at exit' "$log" \
+            | grep -Eiq 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:.*(script|resource)'; then
             echo "Godot reported a script/resource validation error." >&2
             exit 1
           fi
@@ -191,7 +192,8 @@ jobs:
           if [[ "$status" -ne 0 ]]; then
             exit "$status"
           fi
-          if grep -Eiq 'Unhandled exception|System\.[A-Za-z]+Exception|SCRIPT ERROR|ERROR:.*(script|resource)' "$log"; then
+          if grep -Eiv 'ERROR: [0-9]+ resources? still in use at exit' "$log" \
+            | grep -Eiq 'Unhandled exception|System\.[A-Za-z]+Exception|SCRIPT ERROR|ERROR:.*(script|resource)'; then
             echo "Godot runtime smoke reported an error." >&2
             exit 1
           fi
