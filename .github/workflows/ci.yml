@@ -53,6 +53,43 @@ jobs:
       contents: read
       packages: read
 
+  autodev-migration-parity:
+    name: AutoDev migration parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Require migrated AutoDev files to match audited source blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Source baseline: FullHouseDevelopment/AutoDev main at
+          # e2a04e31f91fcfc7e8e2b263480a4d5182319d53 (audited 2026-09-26).
+          while read -r expected path; do
+            actual="$(git hash-object "$path")"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error file=$path::AutoDev migration parity drift: expected blob $expected, got $actual"
+              exit 1
+            fi
+          done <<'EOF'
+          9d2889c8a1eec70ec5d570d892089466b0ec435c .github/workflows/profile-baseline.yml
+          a85961426aae66b487f2c55aa620452cda58d235 .github/workflows/profile-dotnet.yml
+          ed8f4ee612315057f31438bf50816c23bcab8b58 .github/workflows/profile-maui.yml
+          5c9c023598a5595d8748e966d12319366d16ed7c .github/workflows/profile-node-next.yml
+          1520e78e3837335d20b1cbe4a39efc4bb900a18a .github/workflows/profile-python.yml
+          1761473a1e399af9c9142490863399add053b2fe .github/workflows/version-intent.yml
+          f8addfa73dd75f61b552beea524ba45430dcf9d8 .github/workflows/version-tag.yml
+          47aed377d89edafa009d7db5022510d1e8015027 .github/actions/version-policy/action.yml
+          26270b413a627d55017d626652b21f6fcb49c4cb .github/actions/version-policy/index.js
+          4b5fa0a96d8860032365dbd3f2f40c9dca6be4b9 .github/actions/version-policy/index.test.js
+          4ef25bca87e9c2b38bffcd30a93f7164e00168a1 .github/actions/workflow-policy/action.yml
+          1e9934eab302db1be2234291dbae66a6a0708067 .github/actions/workflow-policy/index.js
+          3194c7b66c7b4764e5388b8817a4658f73ed3bbe .github/actions/workflow-policy/index.test.js
+          EOF
+
   action-tests:
     name: Shared action tests
     runs-on: ubuntu-latest
