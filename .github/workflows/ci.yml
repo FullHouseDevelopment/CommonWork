@@ -24,6 +24,26 @@ jobs:
     permissions:
       contents: read
 
+  snapshot-intent-selftest:
+    name: Snapshot intent self-test
+    uses: $/.github/workflows/snapshot-intent.yml
+    with:
+      pr_body: '+snapshot'
+    permissions:
+      contents: read
+      pull-requests: read
+
+  snapshot-intent-assert:
+    name: Snapshot intent output self-test
+    needs: snapshot-intent-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require +snapshot to request an artifact
+        shell: bash
+        env:
+          REQUESTED: ${{ needs.snapshot-intent-selftest.outputs.requested }}
+        run: test "$REQUESTED" = "true"
+
   godot-profile-selftest:
     name: Godot profile self-test
     uses: $/.github/workflows/profile-godot.yml
