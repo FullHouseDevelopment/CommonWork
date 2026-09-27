@@ -36,14 +36,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number || 0 }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
           FALLBACK_BODY: ${{ inputs.pr_body }}
         run: |
           set -euo pipefail
           body="$FALLBACK_BODY"
-          if [[ "$PR_NUMBER" != "0" ]]; then
-            if ! pr_json="$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER")"; then
-              echo "::error::Snapshot intent could not read current PR #$PR_NUMBER. Grant pull-requests: read to the caller job."
+          pr_number="$INPUT_PR_NUMBER"
+
+          # Explicit workflow inputs take precedence. This keeps the workflow
+          # testable and lets callers intentionally supply a body without the
+          # ambient caller PR silently replacing it.
+          if [[ "$pr_number" == "0" && -z "$body" ]]; then
+            pr_number="$EVENT_PR_NUMBER"
+          fi
+
+          if [[ "$pr_number" != "0" ]]; then
+            if ! pr_json="$(gh api "repos/$GH_REPO/pulls/$pr_number")"; then
+              echo "::error::Snapshot intent could not read current PR #$pr_number. Grant pull-requests: read to the caller job."
               exit 1
             fi
             body="$(jq -r '.body // ""' <<<"$pr_json")"

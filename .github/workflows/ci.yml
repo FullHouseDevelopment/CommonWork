@@ -33,6 +33,17 @@ jobs:
       contents: read
       pull-requests: read
 
+  snapshot-intent-assert:
+    name: Snapshot intent output self-test
+    needs: snapshot-intent-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit +snapshot body to resolve true
+        shell: bash
+        env:
+          REQUESTED: ${{ needs.snapshot-intent-selftest.outputs.requested }}
+        run: test "$REQUESTED" = "true"
+
   godot-profile-selftest:
     name: Godot profile self-test
     uses: $/.github/workflows/profile-godot.yml
