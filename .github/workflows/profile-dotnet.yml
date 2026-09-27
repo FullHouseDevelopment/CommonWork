@@ -29,12 +29,12 @@ on:
         type: string
         default: ''
       cache:
-        description: Enable setup-dotnet NuGet caching; requires caller lockfiles
+        description: Enable NuGet package caching
         required: false
         type: boolean
-        default: false
+        default: true
       cache_dependency_path:
-        description: Optional packages.lock.json path/glob for setup-dotnet caching
+        description: Optional dependency/lockfile path/glob for NuGet cache invalidation
         required: false
         type: string
         default: ''
@@ -98,32 +98,36 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Set up .NET from global.json
-        if: inputs.global_json_file != '' && !inputs.cache
+        if: inputs.global_json_file != ''
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: ${{ inputs.global_json_file }}
 
       - name: Set up .NET version
-        if: inputs.global_json_file == '' && !inputs.cache
+        if: inputs.global_json_file == ''
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ inputs.dotnet_version }}
 
-      - name: Set up .NET from global.json with NuGet cache
-        if: inputs.global_json_file != '' && inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Cache NuGet packages from explicit dependency path
+        if: inputs.cache && inputs.cache_dependency_path != ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          global-json-file: ${{ inputs.global_json_file }}
-          cache: true
-          cache-dependency-path: ${{ inputs.cache_dependency_path }}
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-${{ hashFiles(inputs.cache_dependency_path) }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-
+            ${{ runner.os }}-nuget-
 
-      - name: Set up .NET version with NuGet cache
-        if: inputs.global_json_file == '' && inputs.cache
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Cache NuGet packages from project inputs
+        if: inputs.cache && inputs.cache_dependency_path == ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          dotnet-version: ${{ inputs.dotnet_version }}
-          cache: true
-          cache-dependency-path: ${{ inputs.cache_dependency_path }}
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-
+            ${{ runner.os }}-nuget-
 
       - name: Repository-specific setup
         if: inputs.setup_command != ''
