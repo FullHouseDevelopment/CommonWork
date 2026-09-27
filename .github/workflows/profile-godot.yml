@@ -82,7 +82,7 @@ on:
         description: Artifact retention in days
         required: false
         type: number
-        default: 14
+        default: 3
 
 permissions:
   contents: read

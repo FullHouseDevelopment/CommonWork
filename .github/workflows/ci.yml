@@ -24,6 +24,15 @@ jobs:
     permissions:
       contents: read
 
+  snapshot-intent-selftest:
+    name: Snapshot intent self-test
+    uses: $/.github/workflows/snapshot-intent.yml
+    with:
+      pr_body: '+snapshot'
+    permissions:
+      contents: read
+      pull-requests: read
+
   godot-profile-selftest:
     name: Godot profile self-test
     uses: $/.github/workflows/profile-godot.yml
