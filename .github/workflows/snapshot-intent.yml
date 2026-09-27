@@ -80,7 +80,7 @@ jobs:
           {
             echo "### Snapshot intent"
             echo
-            echo "- Snapshot requested: `$requested`"
+            echo "- Snapshot requested: $requested"
             echo
-            echo "Add a line containing exactly `+snapshot` to the PR body to publish snapshot artifacts."
+            echo 'Add a line containing exactly +snapshot to the PR body to publish snapshot artifacts.'
           } >> "$GITHUB_STEP_SUMMARY"
