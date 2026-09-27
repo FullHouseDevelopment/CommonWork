@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ''
+      cache:
+        description: Cache Godot editor/templates and NuGet packages
+        required: false
+        type: boolean
+        default: true
       working_directory:
         description: Godot project directory
         required: false
@@ -106,6 +111,23 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet_version }}
 
+      - name: Cache NuGet packages
+        if: inputs.cache && inputs.dotnet
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-godot-nuget-${{ inputs.dotnet_version || 'runner' }}-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-godot-nuget-${{ inputs.dotnet_version || 'runner' }}-
+            ${{ runner.os }}-godot-nuget-
+
+      - name: Cache Godot editor
+        if: inputs.cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/godot
+          key: ${{ runner.os }}-godot-editor-${{ inputs.godot_version }}-${{ inputs.dotnet && 'mono' || 'standard' }}
+
       - name: Resolve Godot download
         id: godot
         shell: bash
@@ -129,9 +151,12 @@ jobs:
           fi
 
           base="https://godot-releases.nbg1.your-objectstorage.com/${GODOT_VERSION}-stable"
-          curl -fL --retry 3 "$base/$editor_archive" -o "$archive"
-          unzip -q "$archive" -d "$install_dir"
-          godot="$(find "$install_dir" -type f -name "$editor_binary" -print -quit)"
+          godot="$(find "$install_dir" -type f -name "$editor_binary" -print -quit || true)"
+          if [[ -z "$godot" ]]; then
+            curl -fL --retry 3 "$base/$editor_archive" -o "$archive"
+            unzip -q "$archive" -d "$install_dir"
+            godot="$(find "$install_dir" -type f -name "$editor_binary" -print -quit)"
+          fi
           test -n "$godot"
           chmod +x "$godot"
 
@@ -198,8 +223,16 @@ jobs:
             exit 1
           fi
 
+      - name: Cache matching export templates
+        id: godot-templates-cache
+        if: inputs.export_preset != '' && inputs.cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: ${{ runner.os }}-godot-templates-${{ inputs.godot_version }}-${{ inputs.dotnet && 'mono' || 'standard' }}
+
       - name: Install matching export templates
-        if: inputs.export_preset != ''
+        if: inputs.export_preset != '' && (!inputs.cache || steps.godot-templates-cache.outputs.cache-hit != 'true')
         shell: bash
         env:
           TEMPLATES_URL: ${{ steps.godot.outputs.templates_url }}
@@ -256,6 +289,7 @@ jobs:
             echo
             echo "- Godot: \`${{ inputs.godot_version }}\`"
             echo "- .NET editor: \`${{ inputs.dotnet }}\`"
+            echo "- Dependency/tool cache: \`${{ inputs.cache }}\`"
             echo "- Editor import: \`${{ inputs.editor_import }}\`"
             echo "- Runtime smoke: \`${{ inputs.runtime_smoke }}\`"
             echo "- Export preset: \`${{ inputs.export_preset || '(none)' }}\`"
