@@ -13,6 +13,7 @@ supporting actions that are consumed across repositories and organizations.
 - `.github/workflows/profile-maui.yml`
 - `.github/workflows/profile-node-next.yml`
 - `.github/workflows/profile-python.yml`
+- `.github/workflows/snapshot-intent.yml`
 - `.github/workflows/version-intent.yml`
 - `.github/workflows/version-tag.yml`
 
@@ -20,3 +21,7 @@ Consumers should pin reusable workflows to a full CommonWork commit SHA.
 
 AutoDev-specific product CI, packaging, installer verification, and release publication
 remain in the AutoDev repository.
+
+## Snapshot artifacts
+
+Pull requests opt in to downloadable snapshot artifacts by adding a line containing exactly `+snapshot` to the PR body. Snapshot artifacts should use a three-day retention period unless a repository has a documented reason to retain them longer.

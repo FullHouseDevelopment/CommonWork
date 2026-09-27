@@ -1,0 +1,96 @@
+name: Reusable snapshot intent
+
+on:
+  workflow_call:
+    inputs:
+      pr_body:
+        description: Compatibility fallback PR body when no PR number is available
+        required: false
+        type: string
+        default: ''
+      pr_number:
+        description: Pull request number used to fetch the current authoritative PR metadata
+        required: false
+        type: number
+        default: 0
+    outputs:
+      requested:
+        description: Whether the PR body contains exactly one +snapshot directive
+        value: ${{ jobs.snapshot.outputs.requested }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  snapshot:
+    name: Resolve snapshot intent
+    runs-on: ubuntu-latest
+    outputs:
+      requested: ${{ steps.intent.outputs.requested }}
+
+    steps:
+      - name: Resolve current pull request metadata
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
+          FALLBACK_BODY: ${{ inputs.pr_body }}
+        run: |
+          set -euo pipefail
+          body="$FALLBACK_BODY"
+          pr_number="$INPUT_PR_NUMBER"
+
+          # Explicit workflow inputs take precedence. This keeps the workflow
+          # testable and lets callers intentionally supply a body without the
+          # ambient caller PR silently replacing it.
+          if [[ "$pr_number" == "0" && -z "$body" ]]; then
+            pr_number="$EVENT_PR_NUMBER"
+          fi
+
+          if [[ "$pr_number" != "0" ]]; then
+            if ! pr_json="$(gh api "repos/$GH_REPO/pulls/$pr_number")"; then
+              echo "::error::Snapshot intent could not read current PR #$pr_number. Grant pull-requests: read to the caller job."
+              exit 1
+            fi
+            body="$(jq -r '.body // ""' <<<"$pr_json")"
+          fi
+
+          delimiter="SNAPSHOT_PR_BODY_$(python -c 'import uuid; print(uuid.uuid4().hex)')"
+          {
+            echo "body<<$delimiter"
+            printf '%s\n' "$body"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve +snapshot directive
+        id: intent
+        shell: bash
+        env:
+          PR_BODY: ${{ steps.pr.outputs.body }}
+        run: |
+          set -euo pipefail
+          count="$(printf '%s\n' "$PR_BODY" | grep -Eic '^[[:space:]]*\+snapshot[[:space:]]*$' || true)"
+
+          if (( count > 1 )); then
+            echo "::error::Duplicate +snapshot directives are not allowed."
+            exit 1
+          fi
+
+          requested=false
+          if (( count == 1 )); then
+            requested=true
+          fi
+
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Snapshot intent"
+            echo
+            echo "- Snapshot requested: $requested"
+            echo
+            echo 'Add a line containing exactly +snapshot to the PR body to publish snapshot artifacts.'
+          } >> "$GITHUB_STEP_SUMMARY"
