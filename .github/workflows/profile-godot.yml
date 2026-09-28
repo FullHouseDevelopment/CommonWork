@@ -301,6 +301,8 @@ jobs:
           FALLBACK_TAG: ${{ inputs.artifact_release_tag }}
           ARTIFACT_NAME: ${{ inputs.artifact_name }}
           EXPORT_PATH: ${{ inputs.working_directory }}/${{ inputs.export_output }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           test -s "$EXPORT_PATH"
@@ -313,7 +315,13 @@ jobs:
           fi
           safe_name="$(printf '%s' "$ARTIFACT_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
           [[ -n "$safe_name" ]] || safe_name="godot-export"
-          fallback_name="${safe_name}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}${extension}"
+          if [[ -n "$PR_NUMBER" ]]; then
+            scope="pr-${PR_NUMBER}"
+          else
+            scope="$(printf '%s' "$REF_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
+            [[ -n "$scope" ]] || scope="run"
+          fi
+          fallback_name="${safe_name}-${scope}${extension}"
           fallback_path="$RUNNER_TEMP/$fallback_name"
           cp "$EXPORT_PATH" "$fallback_path"
 
