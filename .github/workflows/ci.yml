@@ -54,7 +54,7 @@ jobs:
       editor_import: false
       runtime_smoke: false
     permissions:
-      contents: read
+      contents: write
 
   maui-profile-selftest:
     name: MAUI profile wiring self-test
