@@ -88,9 +88,22 @@ on:
         required: false
         type: number
         default: 3
+      artifact_release_fallback:
+        description: Fall back to a rolling prerelease asset when Actions artifact upload fails
+        required: false
+        type: boolean
+        default: true
+      artifact_release_tag:
+        description: Rolling prerelease tag used for artifact-upload fallback
+        required: false
+        type: string
+        default: ci-snapshots
 
+# Release fallback needs contents: write. Reusable-workflow permissions cannot
+# elevate a caller token, so callers that cap this job at contents: read still
+# need to opt into contents: write when they want fallback storage.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -272,7 +285,9 @@ jobs:
           test -s "$OUTPUT"
 
       - name: Upload export artifact
+        id: upload-export-artifact
         if: inputs.export_preset != '' && inputs.upload_artifact
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ inputs.artifact_name }}
@@ -280,6 +295,74 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}
 
+      - name: Fall back to release asset storage
+        id: fallback-export-artifact
+        if: inputs.export_preset != '' && inputs.upload_artifact && steps.upload-export-artifact.outcome == 'failure' && inputs.artifact_release_fallback
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FALLBACK_TAG: ${{ inputs.artifact_release_tag }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          EXPORT_PATH: ${{ inputs.working_directory }}/${{ inputs.export_output }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -s "$EXPORT_PATH"
+
+          base="$(basename "$EXPORT_PATH")"
+          if [[ "$base" == *.* && "$base" != .* ]]; then
+            extension=".${base##*.}"
+          else
+            extension=""
+          fi
+          safe_name="$(printf '%s' "$ARTIFACT_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
+          [[ -n "$safe_name" ]] || safe_name="godot-export"
+          if [[ -n "$PR_NUMBER" ]]; then
+            scope="pr-${PR_NUMBER}"
+          else
+            scope="$(printf '%s' "$REF_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
+            [[ -n "$scope" ]] || scope="run"
+          fi
+          fallback_name="${safe_name}-${scope}${extension}"
+          fallback_path="$RUNNER_TEMP/$fallback_name"
+          cp "$EXPORT_PATH" "$fallback_path"
+
+          if ! gh release view "$FALLBACK_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$FALLBACK_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "CI snapshot storage" \
+              --notes "Rolling prerelease used only when GitHub Actions artifact storage is unavailable." \
+              --prerelease \
+              --target "$GITHUB_SHA" \
+            || gh release view "$FALLBACK_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          fi
+
+          gh release upload "$FALLBACK_TAG" "$fallback_path" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${FALLBACK_TAG}/${fallback_name}"
+          echo "download_url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Artifact storage fallback"
+            echo
+            echo "Actions artifact upload failed; stored the export as a release asset instead."
+            echo
+            echo "- Download: [$fallback_name]($url)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require export artifact to be stored
+        if: >-
+          always() &&
+          inputs.export_preset != '' &&
+          inputs.upload_artifact &&
+          steps.upload-export-artifact.outcome == 'failure' &&
+          (!inputs.artifact_release_fallback || steps.fallback-export-artifact.outcome != 'success')
+        shell: bash
+        run: |
+          echo "The export succeeded, but neither Actions artifact storage nor release fallback storage succeeded." >&2
+          exit 1
       - name: Summarize Godot profile
         if: always()
         shell: bash
@@ -294,4 +377,8 @@ jobs:
             echo "- Runtime smoke: \`${{ inputs.runtime_smoke }}\`"
             echo "- Export preset: \`${{ inputs.export_preset || '(none)' }}\`"
             echo "- Upload export: \`${{ inputs.upload_artifact }}\`"
+            echo "- Release fallback: \`${{ inputs.artifact_release_fallback }}\`"
+            if [[ -n "${{ steps.fallback-export-artifact.outputs.download_url }}" ]]; then
+              echo "- Fallback download: ${{ steps.fallback-export-artifact.outputs.download_url }}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
