@@ -99,8 +99,11 @@ on:
         type: string
         default: ci-snapshots
 
-# Token permissions are intentionally inherited from the caller. Normal validation only
-# needs contents: read; callers that want release-asset fallback must grant contents: write.
+# Release fallback needs contents: write. Reusable-workflow permissions cannot
+# elevate a caller token, so callers that cap this job at contents: read still
+# need to opt into contents: write when they want fallback storage.
+permissions:
+  contents: write
 
 jobs:
   validate:
