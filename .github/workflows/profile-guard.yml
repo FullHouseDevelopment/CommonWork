@@ -66,10 +66,6 @@ on:
       tag:
         value: ${{ jobs.guard.outputs.tag }}
 
-permissions:
-  contents: read
-  pull-requests: read
-
 jobs:
   guard:
     name: Development guard
