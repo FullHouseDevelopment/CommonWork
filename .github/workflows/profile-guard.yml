@@ -134,7 +134,8 @@ jobs:
       - name: Lint caller workflows
         if: inputs.tier == 'heavy' || inputs.run_actionlint
         shell: bash
-        run: "$RUNNER_TEMP/actionlint-bin/actionlint" -color
+        run: |
+          "$RUNNER_TEMP/actionlint-bin/actionlint" -color
 
       - name: Validate version intent
         if: github.event_name == 'pull_request'
