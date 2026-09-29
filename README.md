@@ -31,6 +31,8 @@ The Godot profile also supports explicit `export_in_light: true` for intentional
 
 Prefer `profile-guard.yml` instead of separate baseline and version-intent jobs so policy plumbing pays one runner-start cost instead of two.
 
+Reusable validation profiles inherit the caller job's explicit `permissions` instead of imposing a reusable-workflow ceiling. This lets light/read-only jobs stay read-only while export/fallback callers can opt into `contents: write` only when they actually need it.
+
 AutoDev-specific product CI, packaging, installer verification, and release publication
 remain in the AutoDev repository.
 
