@@ -166,10 +166,6 @@ on:
       nuget_token:
         required: false
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
   headless:
     name: MAUI shared/headless
