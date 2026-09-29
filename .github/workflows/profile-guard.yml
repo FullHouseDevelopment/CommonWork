@@ -1,0 +1,166 @@
+name: Reusable development guard
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact caller ref/SHA to validate
+        required: false
+        type: string
+        default: ''
+      tier:
+        description: Validation tier. light is the development default; heavy enables actionlint.
+        required: false
+        type: string
+        default: light
+      runner:
+        description: Runner label
+        required: false
+        type: string
+        default: ubuntu-latest
+      require_concurrency:
+        description: Require top-level concurrency in non-reusable caller workflows
+        required: false
+        type: boolean
+        default: true
+      run_actionlint:
+        description: Force actionlint in light mode
+        required: false
+        type: boolean
+        default: false
+      pr_body:
+        description: Fallback PR body
+        required: false
+        type: string
+        default: ''
+      pr_number:
+        description: Pull request number
+        required: false
+        type: number
+        default: 0
+      pr_base:
+        description: Fallback PR base branch
+        required: false
+        type: string
+        default: ''
+      pr_head:
+        description: Fallback PR head branch
+        required: false
+        type: string
+        default: ''
+      base_version:
+        description: Version used when no canonical tag exists
+        required: false
+        type: string
+        default: 0.0.0
+    outputs:
+      bump:
+        value: ${{ jobs.guard.outputs.bump }}
+      version:
+        value: ${{ jobs.guard.outputs.version }}
+      tag:
+        value: ${{ jobs.guard.outputs.tag }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    name: Development guard
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      bump: ${{ steps.version.outputs.bump }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Resolve current pull request metadata
+        if: github.event_name == 'pull_request'
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number || 0 }}
+          FALLBACK_BODY: ${{ inputs.pr_body }}
+          FALLBACK_BASE: ${{ inputs.pr_base || github.event.pull_request.base.ref || '' }}
+          FALLBACK_HEAD: ${{ inputs.pr_head || github.event.pull_request.head.ref || '' }}
+        run: |
+          set -euo pipefail
+          body="$FALLBACK_BODY"
+          base_ref="$FALLBACK_BASE"
+          head_ref="$FALLBACK_HEAD"
+          if [[ "$PR_NUMBER" != "0" ]]; then
+            pr_json="$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER")"
+            body="$(jq -r '.body // ""' <<<"$pr_json")"
+            base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
+            head_ref="$(jq -r '.head.ref // ""' <<<"$pr_json")"
+          fi
+          delimiter="PR_BODY_$(python -c 'import uuid; print(uuid.uuid4().hex)')"
+          {
+            echo "body<<$delimiter"
+            printf '%s\n' "$body"
+            echo "$delimiter"
+            echo "base_ref=$base_ref"
+            echo "head_ref=$head_ref"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out caller repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate workflow policy
+        id: policy
+        uses: $/.github/actions/workflow-policy
+        with:
+          workflows-path: .github/workflows
+          require-concurrency: ${{ inputs.require_concurrency }}
+
+      - name: Install actionlint
+        if: inputs.tier == 'heavy' || inputs.run_actionlint
+        shell: bash
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          export GOBIN="$RUNNER_TEMP/actionlint-bin"
+          mkdir -p "$GOBIN"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+
+      - name: Lint caller workflows
+        if: inputs.tier == 'heavy' || inputs.run_actionlint
+        shell: bash
+        run: "$RUNNER_TEMP/actionlint-bin/actionlint" -color
+
+      - name: Validate version intent
+        if: github.event_name == 'pull_request'
+        id: version
+        uses: $/.github/actions/version-policy
+        with:
+          mode: check-pr
+          repository: ${{ github.repository }}
+          pr-body: ${{ steps.pr.outputs.body }}
+          pr-base: ${{ steps.pr.outputs.base_ref }}
+          pr-head: ${{ steps.pr.outputs.head_ref }}
+          head: ${{ inputs.ref || github.sha }}
+          base-version: ${{ inputs.base_version }}
+          github-token: ${{ github.token }}
+
+      - name: Summarize guard
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Development guard"
+            echo
+            echo "- Tier: \`${{ inputs.tier }}\`"
+            echo "- Workflows checked: \`${{ steps.policy.outputs.checked_files }}\`"
+            echo "- actionlint: \`${{ inputs.tier == 'heavy' || inputs.run_actionlint }}\`"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "- Version intent: \`${{ steps.version.outputs.bump }}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
