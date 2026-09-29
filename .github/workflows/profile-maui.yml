@@ -8,6 +8,16 @@ on:
         required: false
         type: string
         default: ''
+      tier:
+        description: Validation tier. light is headless-first; heavy enables platform product-shape jobs.
+        required: false
+        type: string
+        default: light
+      platforms_in_light:
+        description: Explicitly allow Android/Windows product-shape jobs during light CI
+        required: false
+        type: boolean
+        default: false
       global_json_file:
         description: global.json path
         required: false
@@ -170,6 +180,7 @@ jobs:
       runner: ${{ inputs.headless_runner }}
       global_json_file: ${{ inputs.global_json_file }}
       dotnet_version: ${{ inputs.dotnet_version }}
+      tier: ${{ inputs.tier }}
       cache: ${{ inputs.cache }}
       cache_dependency_path: ${{ inputs.cache_dependency_path }}
       setup_command: ${{ inputs.headless_setup_command }}
@@ -183,7 +194,7 @@ jobs:
 
   android:
     name: MAUI Android
-    if: inputs.android_enabled && inputs.android_runtime_smoke_command == ''
+    if: inputs.android_enabled && (inputs.tier == 'heavy' || inputs.platforms_in_light) && inputs.android_runtime_smoke_command == ''
     uses: $/.github/workflows/profile-dotnet.yml
     with:
       ref: ${{ inputs.ref }}
@@ -203,7 +214,7 @@ jobs:
 
   android-runtime:
     name: MAUI Android runtime smoke
-    if: inputs.android_enabled && inputs.android_runtime_smoke_command != ''
+    if: inputs.android_enabled && (inputs.tier == 'heavy' || inputs.platforms_in_light) && inputs.android_runtime_smoke_command != ''
     runs-on: ${{ inputs.android_runner }}
     timeout-minutes: ${{ inputs.android_runtime_timeout_minutes }}
     env:
@@ -300,7 +311,7 @@ jobs:
 
   windows:
     name: MAUI Windows
-    if: inputs.windows_enabled
+    if: inputs.windows_enabled && (inputs.tier == 'heavy' || inputs.platforms_in_light)
     uses: $/.github/workflows/profile-dotnet.yml
     with:
       ref: ${{ inputs.ref }}
