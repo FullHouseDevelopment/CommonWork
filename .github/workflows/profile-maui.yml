@@ -201,6 +201,7 @@ jobs:
       runner: ${{ inputs.android_runner }}
       global_json_file: ${{ inputs.global_json_file }}
       dotnet_version: ${{ inputs.dotnet_version }}
+      tier: ${{ inputs.tier }}
       cache: ${{ inputs.cache }}
       cache_dependency_path: ${{ inputs.cache_dependency_path }}
       setup_command: ${{ inputs.android_setup_command }}
@@ -318,6 +319,7 @@ jobs:
       runner: ${{ inputs.windows_runner }}
       global_json_file: ${{ inputs.global_json_file }}
       dotnet_version: ${{ inputs.dotnet_version }}
+      tier: ${{ inputs.tier }}
       cache: ${{ inputs.cache }}
       cache_dependency_path: ${{ inputs.cache_dependency_path }}
       setup_command: ${{ inputs.windows_setup_command }}
