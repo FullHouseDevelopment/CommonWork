@@ -98,9 +98,6 @@ on:
         type: number
         default: 14
 
-permissions:
-  contents: read
-
 jobs:
   validate:
     name: Python ${{ matrix.python }} / ${{ matrix.runner }}
