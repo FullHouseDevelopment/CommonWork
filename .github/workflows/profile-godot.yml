@@ -122,9 +122,6 @@ on:
 # Release fallback needs contents: write. Reusable-workflow permissions cannot
 # elevate a caller token, so callers that cap this job at contents: read still
 # need to opt into contents: write when they want fallback storage.
-permissions:
-  contents: write
-
 jobs:
   validate:
     name: Godot ${{ inputs.godot_version }} ${{ inputs.dotnet && '.NET' || 'Standard' }}
