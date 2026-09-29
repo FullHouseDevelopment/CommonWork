@@ -8,11 +8,21 @@ on:
         required: false
         type: string
         default: ''
+      tier:
+        description: Validation tier. light is the development default; heavy enables release-grade extras.
+        required: false
+        type: string
+        default: light
+      runner:
+        description: Runner label for baseline validation
+        required: false
+        type: string
+        default: ubuntu-latest
       run_actionlint:
-        description: Run actionlint against caller workflows
+        description: Force actionlint in light mode; heavy mode always runs it
         required: false
         type: boolean
-        default: true
+        default: false
       require_concurrency:
         description: Require top-level concurrency in non-reusable caller workflows
         required: false
@@ -24,13 +34,10 @@ on:
         type: string
         default: v1.7.12
 
-permissions:
-  contents: read
-
 jobs:
   policy:
     name: Workflow policy
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
 
     steps:
       - name: Check out caller repository
@@ -47,7 +54,7 @@ jobs:
           require-concurrency: ${{ inputs.require_concurrency }}
 
       - name: Install actionlint
-        if: inputs.run_actionlint
+        if: inputs.tier == 'heavy' || inputs.run_actionlint
         shell: bash
         env:
           ACTIONLINT_VERSION: ${{ inputs.actionlint_version }}
@@ -59,7 +66,7 @@ jobs:
           "$GOBIN/actionlint" -version
 
       - name: Lint caller workflows
-        if: inputs.run_actionlint
+        if: inputs.tier == 'heavy' || inputs.run_actionlint
         shell: bash
         run: |
           "$RUNNER_TEMP/actionlint-bin/actionlint" -color

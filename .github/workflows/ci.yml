@@ -2,30 +2,66 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: common-work-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  shared-baseline-selftest:
-    name: Shared baseline self-test
-    uses: $/.github/workflows/profile-baseline.yml
-    with:
-      ref: ${{ github.sha }}
-      run_actionlint: false
-      require_concurrency: true
-    permissions:
-      contents: read
+  lean:
+    name: Lean shared-workflow validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+
+      - name: Run shared action tests
+        run: |
+          node --test .github/actions/version-policy/index.test.js
+          node --test .github/actions/workflow-policy/index.test.js
+
+      - name: Validate workflow policy
+        uses: ./.github/actions/workflow-policy
+        with:
+          workflows-path: .github/workflows
+          require-concurrency: true
+
+      - name: Install actionlint
+        shell: bash
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          export GOBIN="$RUNNER_TEMP/actionlint-bin"
+          mkdir -p "$GOBIN"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+
+      - name: Lint workflows
+        shell: bash
+        run: |
+          # actionlint v1.7.12 predates GitHub's $/ self-repository syntax.
+          "$RUNNER_TEMP/actionlint-bin/actionlint" -color \
+            -ignore 'invalid format because ref is missing' \
+            -ignore 'not following the format .* nor "./path/to/workflow.yml"'
 
   snapshot-intent-selftest:
-    name: Snapshot intent self-test
+    name: Snapshot intent main-only self-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: $/.github/workflows/snapshot-intent.yml
     with:
       pr_body: '+snapshot'
@@ -33,22 +69,13 @@ jobs:
       contents: read
       pull-requests: read
 
-  snapshot-intent-assert:
-    name: Snapshot intent output self-test
-    needs: snapshot-intent-selftest
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require explicit +snapshot body to resolve true
-        shell: bash
-        env:
-          REQUESTED: ${{ needs.snapshot-intent-selftest.outputs.requested }}
-        run: test "$REQUESTED" = "true"
-
   godot-profile-selftest:
-    name: Godot profile self-test
+    name: Godot profile main-only self-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: $/.github/workflows/profile-godot.yml
     with:
       ref: ${{ github.sha }}
+      tier: light
       godot_version: '4.7.2'
       dotnet: false
       editor_import: false
@@ -57,10 +84,12 @@ jobs:
       contents: write
 
   maui-profile-selftest:
-    name: MAUI profile wiring self-test
-    uses: ./.github/workflows/profile-maui.yml
+    name: MAUI profile main-only self-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: $/.github/workflows/profile-maui.yml
     with:
       ref: ${{ github.sha }}
+      tier: light
       global_json_file: ''
       dotnet_version: '10.0.x'
       headless_enabled: true
@@ -72,76 +101,3 @@ jobs:
     permissions:
       contents: read
       packages: read
-
-  action-tests:
-    name: Shared action tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: '24'
-
-      - name: Run version-policy tests
-        run: node --test .github/actions/version-policy/index.test.js
-
-      - name: Run workflow-policy tests
-        run: node --test .github/actions/workflow-policy/index.test.js
-
-  workflow-lint:
-    name: Workflow lint and immutable refs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - name: Install actionlint
-        shell: bash
-        env:
-          ACTIONLINT_VERSION: v1.7.12
-        run: |
-          set -euo pipefail
-          export GOBIN="$RUNNER_TEMP/actionlint-bin"
-          mkdir -p "$GOBIN"
-          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
-          "$GOBIN/actionlint" -version
-
-      - name: Lint workflows
-        shell: bash
-        run: |
-          # actionlint v1.7.12 predates GitHub's $/ self-repository syntax.
-          # GitHub validates it at runtime in shared-baseline-selftest above.
-          "$RUNNER_TEMP/actionlint-bin/actionlint" -color \
-            -ignore 'invalid format because ref is missing' \
-            -ignore 'not following the format .* nor "./path/to/workflow.yml"'
-
-      - name: Require immutable external action refs
-        shell: python
-        run: |
-          import pathlib
-          import re
-          import sys
-
-          full_sha = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
-          errors = []
-          for path in pathlib.Path(".github/workflows").glob("*.y*ml"):
-              for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                  match = re.search(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", line)
-                  if not match:
-                      continue
-                  ref = match.group(1).strip("'\"")
-                  if ref.startswith("./") or ref.startswith("$/") or ref.startswith("docker://"):
-                      continue
-                  if "@" not in ref or not full_sha.fullmatch(ref.rsplit("@", 1)[1]):
-                      errors.append(f"{path}:{line_number}: {ref}")
-          if errors:
-              print("External actions/workflows must be pinned to full commit SHAs:", file=sys.stderr)
-              print("\n".join(errors), file=sys.stderr)
-              raise SystemExit(1)

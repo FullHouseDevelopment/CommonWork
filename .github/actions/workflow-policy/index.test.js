@@ -43,8 +43,8 @@ test('requires top-level permissions and optional concurrency', () => {
   assert.equal(errors.some((value) => value.includes('concurrency')), true);
 });
 
-test('reusable workflows are exempt from caller concurrency requirement', () => {
-  const text = `name: Reusable\non:\n  workflow_call:\npermissions:\n  contents: read\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n`;
+test('reusable workflows may inherit caller permissions and are exempt from caller concurrency requirement', () => {
+  const text = `name: Reusable\non:\n  workflow_call:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n`;
   assert.equal(isReusableWorkflow(text), true);
   assert.deepEqual(validateWorkflow('reuse.yml', text, { requireConcurrency: true }), []);
 });

@@ -74,7 +74,7 @@ function validateWorkflow(file, text, options = {}) {
   if (/^\s*permissions:\s*write-all\s*$/m.test(text)) {
     errors.push(`${file}: permissions: write-all is forbidden`);
   }
-  if (!hasTopLevelKey(text, 'permissions')) {
+  if (!isReusableWorkflow(text) && !hasTopLevelKey(text, 'permissions')) {
     errors.push(`${file}: missing explicit top-level permissions`);
   }
 
