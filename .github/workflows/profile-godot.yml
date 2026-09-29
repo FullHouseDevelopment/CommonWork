@@ -8,6 +8,16 @@ on:
         required: false
         type: string
         default: ''
+      tier:
+        description: Validation tier. light builds/imports; heavy enables runtime/export work.
+        required: false
+        type: string
+        default: light
+      runner:
+        description: Linux runner label
+        required: false
+        type: string
+        default: ubuntu-latest
       godot_version:
         description: Godot version, e.g. 4.7.2
         required: false
@@ -53,6 +63,11 @@ on:
         required: false
         type: boolean
         default: false
+      runtime_smoke_in_light:
+        description: Allow runtime_smoke during light development CI
+        required: false
+        type: boolean
+        default: false
       runtime_seconds:
         description: Headless runtime-smoke duration
         required: false
@@ -73,6 +88,11 @@ on:
         required: false
         type: boolean
         default: true
+      export_in_light:
+        description: Allow export work during light CI, for explicit snapshot requests
+        required: false
+        type: boolean
+        default: false
       upload_artifact:
         description: Upload export_output as a workflow artifact
         required: false
@@ -108,7 +128,7 @@ permissions:
 jobs:
   validate:
     name: Godot ${{ inputs.godot_version }} ${{ inputs.dotnet && '.NET' || 'Standard' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 45
 
     steps:
@@ -214,7 +234,7 @@ jobs:
           fi
 
       - name: Run headless runtime smoke
-        if: inputs.runtime_smoke
+        if: inputs.runtime_smoke && (inputs.tier == 'heavy' || inputs.runtime_smoke_in_light)
         shell: bash
         working-directory: ${{ inputs.working_directory }}
         env:
@@ -238,14 +258,14 @@ jobs:
 
       - name: Cache matching export templates
         id: godot-templates-cache
-        if: inputs.export_preset != '' && inputs.cache
+        if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light) && inputs.cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ~/.local/share/godot/export_templates
           key: ${{ runner.os }}-godot-templates-${{ inputs.godot_version }}-${{ inputs.dotnet && 'mono' || 'standard' }}
 
       - name: Install matching export templates
-        if: inputs.export_preset != '' && (!inputs.cache || steps.godot-templates-cache.outputs.cache-hit != 'true')
+        if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light) && (!inputs.cache || steps.godot-templates-cache.outputs.cache-hit != 'true')
         shell: bash
         env:
           TEMPLATES_URL: ${{ steps.godot.outputs.templates_url }}
@@ -261,7 +281,7 @@ jobs:
           cp -R "$unpacked/templates/." "$target/"
 
       - name: Export project
-        if: inputs.export_preset != ''
+        if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light)
         shell: bash
         working-directory: ${{ inputs.working_directory }}
         env:
@@ -286,7 +306,7 @@ jobs:
 
       - name: Upload export artifact
         id: upload-export-artifact
-        if: inputs.export_preset != '' && inputs.upload_artifact
+        if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light) && inputs.upload_artifact
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -297,7 +317,7 @@ jobs:
 
       - name: Fall back to release asset storage
         id: fallback-export-artifact
-        if: inputs.export_preset != '' && inputs.upload_artifact && steps.upload-export-artifact.outcome == 'failure' && inputs.artifact_release_fallback
+        if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light) && inputs.upload_artifact && steps.upload-export-artifact.outcome == 'failure' && inputs.artifact_release_fallback
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -356,6 +376,7 @@ jobs:
         if: >-
           always() &&
           inputs.export_preset != '' &&
+          (inputs.tier == 'heavy' || inputs.export_in_light) &&
           inputs.upload_artifact &&
           steps.upload-export-artifact.outcome == 'failure' &&
           (!inputs.artifact_release_fallback || steps.fallback-export-artifact.outcome != 'success')
