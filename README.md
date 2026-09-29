@@ -7,6 +7,7 @@ supporting actions that are consumed across repositories and organizations.
 
 ## Reusable workflows
 
+- `.github/workflows/profile-guard.yml` — combined workflow policy + PR version intent in one runner job
 - `.github/workflows/profile-baseline.yml`
 - `.github/workflows/profile-dotnet.yml`
 - `.github/workflows/profile-godot.yml`
@@ -18,6 +19,17 @@ supporting actions that are consumed across repositories and organizations.
 - `.github/workflows/version-tag.yml`
 
 Consumers should pin reusable workflows to a full CommonWork commit SHA.
+
+## Light vs heavy CI
+
+Shared profiles use a common `tier` convention:
+
+- `light` is the default for development PRs. It keeps source validation, build/test checks, and cheap product sanity checks while avoiding release evidence, platform fan-out, exports, and packaging.
+- `heavy` is for trusted `main`/release validation. It enables release-grade extras such as platform product-shape jobs, runtime/export checks, and artifact evidence.
+
+The Godot profile also supports explicit `export_in_light: true` for intentional PR snapshots. The MAUI profile supports `platforms_in_light: true` when a specific PR genuinely needs platform validation.
+
+Prefer `profile-guard.yml` instead of separate baseline and version-intent jobs so policy plumbing pays one runner-start cost instead of two.
 
 AutoDev-specific product CI, packaging, installer verification, and release publication
 remain in the AutoDev repository.
@@ -36,6 +48,8 @@ godot:
   permissions:
     contents: write
   with:
+    tier: light
+    export_in_light: true
     export_preset: Android
     export_output: artifacts/app.apk
     upload_artifact: true
