@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ''
+      tier:
+        description: Validation tier. light runs build/test only; heavy may publish CI evidence.
+        required: false
+        type: string
+        default: light
       runner:
         description: GitHub runner label
         required: false
@@ -61,10 +66,15 @@ on:
         type: string
         default: ''
       test_results_path:
-        description: Optional TRX/coverage/result path; when set at least one result must exist
+        description: Optional TRX/coverage/result path; uploaded in heavy mode unless explicitly requested
         required: false
         type: string
         default: ''
+      upload_test_results:
+        description: Upload test results even in light mode
+        required: false
+        type: boolean
+        default: false
       artifact_name:
         description: Result artifact name
         required: false
@@ -157,7 +167,7 @@ jobs:
         run: ${{ inputs.lint_command }}
 
       - name: Require and upload test results
-        if: inputs.test_results_path != '' && always()
+        if: inputs.test_results_path != '' && always() && (inputs.tier == 'heavy' || inputs.upload_test_results)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.artifact_name }}-${{ inputs.runner }}
