@@ -92,9 +92,6 @@ on:
         type: number
         default: 14
 
-permissions:
-  contents: read
-
 jobs:
   validate:
     name: Node ${{ inputs.node_version }} / ${{ inputs.runner }}
