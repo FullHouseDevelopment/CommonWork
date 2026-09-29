@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ''
+      tier:
+        description: Validation tier. light runs compile/test only; heavy may package and publish evidence.
+        required: false
+        type: string
+        default: light
       runners:
         description: JSON array of GitHub runner labels
         required: false
@@ -63,10 +68,15 @@ on:
         required: true
         type: string
       package_command:
-        description: Optional packaging command
+        description: Optional packaging command; heavy-only unless run_package_in_light is true
         required: false
         type: string
         default: ''
+      run_package_in_light:
+        description: Run package_command during light development CI
+        required: false
+        type: boolean
+        default: false
       artifact_name:
         description: Optional artifact name; matrix values are appended automatically
         required: false
@@ -77,6 +87,11 @@ on:
         required: false
         type: string
         default: ''
+      upload_artifact:
+        description: Upload validation artifacts even in light mode
+        required: false
+        type: boolean
+        default: false
       artifact_retention_days:
         description: Artifact retention in days
         required: false
@@ -146,13 +161,13 @@ jobs:
         run: ${{ inputs.test_command }}
 
       - name: Package
-        if: inputs.package_command != ''
+        if: inputs.package_command != '' && (inputs.tier == 'heavy' || inputs.run_package_in_light)
         shell: bash
         working-directory: ${{ inputs.working_directory }}
         run: ${{ inputs.package_command }}
 
       - name: Upload validation artifacts
-        if: inputs.artifact_name != '' && inputs.artifact_path != '' && always()
+        if: inputs.artifact_name != '' && inputs.artifact_path != '' && always() && (inputs.tier == 'heavy' || inputs.upload_artifact)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.artifact_name }}-${{ matrix.runner }}-py${{ matrix.python }}
