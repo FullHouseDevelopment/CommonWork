@@ -95,10 +95,6 @@ on:
         description: Optional caller-provided package-feed token exposed as NUGET_AUTH_TOKEN
         required: false
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
   validate:
     name: .NET validate / ${{ inputs.runner }}
