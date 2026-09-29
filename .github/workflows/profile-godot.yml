@@ -155,13 +155,14 @@ jobs:
             ${{ runner.os }}-godot-nuget-
 
       - name: Cache Godot editor
-        if: inputs.cache
+        if: inputs.cache && (inputs.editor_import || (inputs.runtime_smoke && (inputs.tier == 'heavy' || inputs.runtime_smoke_in_light)) || (inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light)))
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/godot
           key: ${{ runner.os }}-godot-editor-${{ inputs.godot_version }}-${{ inputs.dotnet && 'mono' || 'standard' }}
 
       - name: Resolve Godot download
+        if: inputs.editor_import || (inputs.runtime_smoke && (inputs.tier == 'heavy' || inputs.runtime_smoke_in_light)) || (inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light))
         id: godot
         shell: bash
         env:
