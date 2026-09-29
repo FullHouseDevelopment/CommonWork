@@ -61,7 +61,12 @@ on:
         required: true
         type: string
       lint_command:
-        description: Optional analyzer/format command
+        description: Optional analyzer/format command kept in light CI
+        required: false
+        type: string
+        default: ''
+      heavy_command:
+        description: Optional release-grade verification command run only in heavy CI
         required: false
         type: string
         default: ''
@@ -165,6 +170,12 @@ jobs:
         shell: bash
         working-directory: ${{ inputs.working_directory }}
         run: ${{ inputs.lint_command }}
+
+      - name: Heavy validation
+        if: inputs.tier == 'heavy' && inputs.heavy_command != ''
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.heavy_command }}
 
       - name: Require and upload test results
         if: inputs.test_results_path != '' && always() && (inputs.tier == 'heavy' || inputs.upload_test_results)
