@@ -13,6 +13,7 @@ CommonWork exposes small step-level capabilities under `.github/actions/` so cal
 - `setup-node`
 - `setup-python`
 - `setup-godot`
+- `setup-android-sdk`
 - `install-godot-templates`
 - `godot-import`
 - `godot-runtime-smoke`
