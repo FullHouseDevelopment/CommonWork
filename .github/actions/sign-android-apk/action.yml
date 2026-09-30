@@ -1,0 +1,88 @@
+name: Sign Android APK
+description: Align, sign, and verify an Android APK using PEM certificate/private-key material.
+inputs:
+  apk:
+    description: Input APK path.
+    required: true
+  output:
+    description: Signed APK output path.
+    required: true
+  certificate_pem:
+    description: PEM certificate contents or base64-encoded PEM.
+    required: true
+  private_key_pem:
+    description: PEM private key contents or base64-encoded PEM.
+    required: true
+  private_key_password:
+    description: Optional private-key password.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Prepare Android signing assets
+      shell: bash
+      env:
+        CERTIFICATE_PEM: ${{ inputs.certificate_pem }}
+        PRIVATE_KEY_PEM: ${{ inputs.private_key_pem }}
+        PRIVATE_KEY_PASSWORD: ${{ inputs.private_key_password }}
+      run: |
+        set -euo pipefail
+        tmpdir="$(mktemp -d "$RUNNER_TEMP/android-signing.XXXXXX")"
+        trap 'rm -rf "$tmpdir"' EXIT
+
+        write_secret() {
+          local value="$1" destination="$2"
+          if [[ "$value" == *"-----BEGIN"* ]]; then
+            printf '%s
+' "$value" > "$destination"
+          elif ! printf '%s' "$value" | base64 --decode > "$destination" 2>/dev/null; then
+            printf '%s
+' "$value" > "$destination"
+          fi
+        }
+
+        write_secret "$PRIVATE_KEY_PEM" "$tmpdir/key.pem"
+        write_secret "$CERTIFICATE_PEM" "$tmpdir/cert.pem"
+
+        key_path="$RUNNER_TEMP/android-signing-key.pk8"
+        cert_path="$RUNNER_TEMP/android-signing-cert.pem"
+        passin_args=()
+        if [[ -n "$PRIVATE_KEY_PASSWORD" ]]; then
+          passin_args=(-passin "pass:$PRIVATE_KEY_PASSWORD")
+        fi
+
+        openssl pkcs8 -topk8 -inform PEM -outform DER           -in "$tmpdir/key.pem" -out "$key_path" -nocrypt "${passin_args[@]}"
+        cp "$tmpdir/cert.pem" "$cert_path"
+
+        {
+          echo "COMMONWORK_ANDROID_KEY=$key_path"
+          echo "COMMONWORK_ANDROID_CERT=$cert_path"
+        } >> "$GITHUB_ENV"
+
+    - name: Align, sign, and verify APK
+      shell: bash
+      env:
+        INPUT_APK: ${{ inputs.apk }}
+        OUTPUT_APK: ${{ inputs.output }}
+      run: |
+        set -euo pipefail
+        [[ -f "$INPUT_APK" ]] || { echo "APK not found: $INPUT_APK" >&2; exit 2; }
+        sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+        [[ -n "$sdk_root" ]] || { echo "ANDROID_SDK_ROOT/ANDROID_HOME is not set." >&2; exit 2; }
+
+        build_tools="$(find "$sdk_root/build-tools" -mindepth 1 -maxdepth 1 -type d -printf '%f
+' | sort -V | tail -1)"
+        [[ -n "$build_tools" ]] || { echo "Android build-tools not found." >&2; exit 2; }
+        dir="$sdk_root/build-tools/$build_tools"
+        zipalign="$dir/zipalign"
+        apksigner="$dir/apksigner"
+        [[ -x "$zipalign" ]] || zipalign="$dir/zipalign.exe"
+        [[ -x "$apksigner" ]] || apksigner="$dir/apksigner.bat"
+
+        mkdir -p "$(dirname "$OUTPUT_APK")"
+        aligned="$RUNNER_TEMP/commonwork-aligned.apk"
+        "$zipalign" -f -p 4 "$INPUT_APK" "$aligned"
+        "$apksigner" sign --key "$COMMONWORK_ANDROID_KEY" --cert "$COMMONWORK_ANDROID_CERT" --out "$OUTPUT_APK" "$aligned"
+        "$apksigner" verify --print-certs "$OUTPUT_APK"
+        test -s "$OUTPUT_APK"
