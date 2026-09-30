@@ -5,6 +5,27 @@ Shared engineering automation for Full House Development and Levron Games.
 This public repository is the canonical home for reusable GitHub Actions workflows and
 supporting actions that are consumed across repositories and organizations.
 
+## Composable actions
+
+CommonWork exposes small step-level capabilities under `.github/actions/` so callers can assemble custom jobs without copying shell setup:
+
+- `setup-dotnet`
+- `setup-node`
+- `setup-python`
+- `setup-godot`
+- `install-godot-templates`
+- `godot-import`
+- `godot-runtime-smoke`
+- `godot-export`
+- `sign-android-apk`
+- `upload-artifact-with-fallback`
+- `dotnet-validate`
+- policy/version actions already used by shared workflows
+
+Use an action when the unit of reuse is a capability inside one job. Use a reusable workflow when the unit of reuse owns runners, matrices, permissions, job dependencies, or higher-level orchestration.
+
+External callers should pin actions and workflows to a full CommonWork commit SHA.
+
 ## Reusable workflows
 
 - `.github/workflows/profile-guard.yml` — combined workflow policy + PR version intent in one runner job
@@ -17,8 +38,9 @@ supporting actions that are consumed across repositories and organizations.
 - `.github/workflows/snapshot-intent.yml`
 - `.github/workflows/version-intent.yml`
 - `.github/workflows/version-tag.yml`
+- `.github/workflows/release.yml` — opt-in release orchestration for .NET, Node, Python, and Godot profiles
 
-Consumers should pin reusable workflows to a full CommonWork commit SHA.
+Consumers should pin reusable workflows to a full CommonWork commit SHA. The shared profiles themselves are composed from the small actions above so there is one implementation of each common capability rather than a workflow-specific copy.
 
 ## Light vs heavy CI
 
