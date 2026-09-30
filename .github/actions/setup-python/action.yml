@@ -1,5 +1,5 @@
 name: Set up Python
-description: Install Python with optional dependency caching.
+description: Install Python with dependency caching enabled by default.
 inputs:
   python_version:
     description: Python version or range.
@@ -7,7 +7,7 @@ inputs:
   cache:
     description: Enable setup-python dependency caching.
     required: false
-    default: 'false'
+    default: 'true'
   cache_type:
     description: Cache type supported by setup-python, such as pip, pipenv, or poetry.
     required: false
