@@ -41,7 +41,7 @@ runs:
   using: composite
   steps:
     - name: Set up .NET
-      uses: ./.github/actions/setup-dotnet
+      uses: $/.github/actions/setup-dotnet
       with:
         global_json_file: ${{ inputs.global_json_file }}
         dotnet_version: ${{ inputs.dotnet_version }}
