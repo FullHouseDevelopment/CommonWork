@@ -1,0 +1,63 @@
+name: Set up Android SDK
+description: Set up Java and ensure the Android SDK platform/build-tools required by packaging or signing are installed.
+inputs:
+  java_distribution:
+    required: false
+    default: microsoft
+  java_version:
+    required: false
+    default: '17'
+  build_tools_version:
+    required: false
+    default: '36.1.0'
+  platform_version:
+    required: false
+    default: '36'
+  accept_licenses:
+    required: false
+    default: 'true'
+outputs:
+  build_tools_dir:
+    description: Absolute Android build-tools directory.
+    value: ${{ steps.sdk.outputs.build_tools_dir }}
+runs:
+  using: composite
+  steps:
+    - name: Set up Java
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+      with:
+        distribution: ${{ inputs.java_distribution }}
+        java-version: ${{ inputs.java_version }}
+
+    - name: Install Android SDK packages
+      id: sdk
+      shell: bash
+      env:
+        BUILD_TOOLS_VERSION: ${{ inputs.build_tools_version }}
+        PLATFORM_VERSION: ${{ inputs.platform_version }}
+        ACCEPT_LICENSES: ${{ inputs.accept_licenses }}
+      run: |
+        set -euo pipefail
+        sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+        [[ -n "$sdk_root" ]] || {
+          echo "ANDROID_SDK_ROOT/ANDROID_HOME is not set." >&2
+          exit 2
+        }
+
+        sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+        if [[ ! -x "$sdkmanager" ]]; then
+          sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
+        fi
+        [[ -x "$sdkmanager" ]] || {
+          echo "Could not locate sdkmanager under $sdk_root/cmdline-tools." >&2
+          exit 2
+        }
+
+        if [[ "$ACCEPT_LICENSES" == "true" ]]; then
+          yes | "$sdkmanager" --licenses >/dev/null || true
+        fi
+        "$sdkmanager"           "platform-tools"           "build-tools;$BUILD_TOOLS_VERSION"           "platforms;android-$PLATFORM_VERSION"
+
+        dir="$sdk_root/build-tools/$BUILD_TOOLS_VERSION"
+        [[ -d "$dir" ]] || { echo "Build-tools directory not found: $dir" >&2; exit 2; }
+        echo "build_tools_dir=$dir" >> "$GITHUB_OUTPUT"
