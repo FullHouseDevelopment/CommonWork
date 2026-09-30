@@ -7,6 +7,10 @@ inputs:
   output:
     description: Signed APK output path.
     required: true
+  app_name:
+    description: App/repository name used to namespace temporary signing material. Defaults to the caller repository name.
+    required: false
+    default: ''
   keystore_base64:
     description: Optional base64-encoded Android keystore.
     required: false
@@ -52,8 +56,13 @@ runs:
         CERTIFICATE_PEM: ${{ inputs.certificate_pem }}
         PRIVATE_KEY_PEM: ${{ inputs.private_key_pem }}
         PRIVATE_KEY_PASSWORD: ${{ inputs.private_key_password }}
+        APP_NAME: ${{ inputs.app_name }}
       run: |
         set -euo pipefail
+
+        app_name="${APP_NAME:-${GITHUB_REPOSITORY##*/}}"
+        safe_app_name="$(printf '%s' "$app_name" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
+        [[ -n "$safe_app_name" ]] || safe_app_name=app
 
         native_path() {
           if [[ "${RUNNER_OS:-}" == "Windows" ]] && command -v cygpath >/dev/null 2>&1; then
@@ -66,10 +75,11 @@ runs:
         if [[ -n "$KEYSTORE_BASE64" ]]; then
           : "${KEY_ALIAS:?key_alias is required with keystore_base64}"
           : "${KEYSTORE_PASSWORD:?keystore_password is required with keystore_base64}"
-          keystore="$RUNNER_TEMP/commonwork-android.keystore"
+          keystore="$RUNNER_TEMP/${safe_app_name}-android-release.keystore"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
           chmod 600 "$keystore"
           {
+            echo "COMMONWORK_ANDROID_APP_NAME=$safe_app_name"
             echo "COMMONWORK_ANDROID_MODE=keystore"
             echo "COMMONWORK_ANDROID_KEYSTORE=$(native_path "$keystore")"
             echo "COMMONWORK_ANDROID_ALIAS=$KEY_ALIAS"
@@ -84,7 +94,7 @@ runs:
           exit 2
         }
 
-        tmpdir="$(mktemp -d "$RUNNER_TEMP/android-signing.XXXXXX")"
+        tmpdir="$(mktemp -d "$RUNNER_TEMP/${safe_app_name}-android-signing.XXXXXX")"
         trap 'rm -rf "$tmpdir"' EXIT
         write_secret() {
           local value="$1" destination="$2"
@@ -98,8 +108,8 @@ runs:
         write_secret "$PRIVATE_KEY_PEM" "$tmpdir/key.pem"
         write_secret "$CERTIFICATE_PEM" "$tmpdir/cert.pem"
 
-        key_path="$RUNNER_TEMP/commonwork-android-signing-key.pk8"
-        cert_path="$RUNNER_TEMP/commonwork-android-signing-cert.pem"
+        key_path="$RUNNER_TEMP/${safe_app_name}-android-signing-key.pk8"
+        cert_path="$RUNNER_TEMP/${safe_app_name}-android-signing-cert.pem"
         passin_args=()
         if [[ -n "$PRIVATE_KEY_PASSWORD" ]]; then
           passin_args=(-passin "pass:$PRIVATE_KEY_PASSWORD")
@@ -113,6 +123,7 @@ runs:
         cp "$tmpdir/cert.pem" "$cert_path"
 
         {
+          echo "COMMONWORK_ANDROID_APP_NAME=$safe_app_name"
           echo "COMMONWORK_ANDROID_MODE=pem"
           echo "COMMONWORK_ANDROID_KEY=$(native_path "$key_path")"
           echo "COMMONWORK_ANDROID_CERT=$(native_path "$cert_path")"
@@ -138,7 +149,7 @@ runs:
         apksigner="$dir/apksigner"
 
         mkdir -p "$(dirname "$OUTPUT_APK")"
-        aligned="$RUNNER_TEMP/commonwork-aligned.apk"
+        aligned="$RUNNER_TEMP/${COMMONWORK_ANDROID_APP_NAME}-android-aligned.apk"
         "$zipalign" -f -p 4 "$INPUT_APK" "$aligned"
 
         if [[ "$COMMONWORK_ANDROID_MODE" == "keystore" ]]; then
@@ -194,7 +205,7 @@ runs:
 
         $outputParent = Split-Path -Parent $env:OUTPUT_APK
         if ($outputParent) { New-Item -ItemType Directory -Force -Path $outputParent | Out-Null }
-        $aligned = Join-Path $env:RUNNER_TEMP 'commonwork-aligned.apk'
+        $aligned = Join-Path $env:RUNNER_TEMP "$env:COMMONWORK_ANDROID_APP_NAME-android-aligned.apk"
 
         & $zipalign -f -p 4 $env:INPUT_APK $aligned
         if ($LASTEXITCODE -ne 0) { throw "zipalign failed with exit code $LASTEXITCODE" }
