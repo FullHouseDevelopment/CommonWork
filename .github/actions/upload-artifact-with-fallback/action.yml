@@ -74,8 +74,10 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         else:
             z.write(match, os.path.basename(match))
 PY
-        echo "path=$payload" >> "$GITHUB_OUTPUT"
-        echo "name=$(basename "$payload")" >> "$GITHUB_OUTPUT"
+        {
+          echo "path=$payload"
+          echo "name=$(basename "$payload")"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Upload fallback release asset
       id: fallback
@@ -93,7 +95,12 @@ PY
           echo "github_token is required when release fallback is enabled." >&2
           exit 2
         }
-        gh release view "$FALLBACK_TAG" >/dev/null 2>&1 ||           gh release create "$FALLBACK_TAG"             --title "CI snapshot storage"             --notes "Rolling prerelease used when Actions artifact storage is unavailable."             --prerelease             --target "$GITHUB_SHA"
+        gh release view "$FALLBACK_TAG" >/dev/null 2>&1 || \
+          gh release create "$FALLBACK_TAG" \
+            --title "CI snapshot storage" \
+            --notes "Rolling prerelease used when Actions artifact storage is unavailable." \
+            --prerelease \
+            --target "$GITHUB_SHA"
         gh release upload "$FALLBACK_TAG" "$FALLBACK_PATH" --clobber
         echo "url=https://github.com/$GITHUB_REPOSITORY/releases/download/$FALLBACK_TAG/$FALLBACK_NAME" >> "$GITHUB_OUTPUT"
 
@@ -108,14 +115,20 @@ PY
       run: |
         set -euo pipefail
         if [[ "$UPLOAD_OUTCOME" == "success" ]]; then
-          echo "storage=actions" >> "$GITHUB_OUTPUT"
-          echo "fallback_url=" >> "$GITHUB_OUTPUT"
+          {
+            echo "storage=actions"
+            echo "fallback_url="
+          } >> "$GITHUB_OUTPUT"
         elif [[ "$FALLBACK_ENABLED" == "true" && "$FALLBACK_OUTCOME" == "success" ]]; then
-          echo "storage=release" >> "$GITHUB_OUTPUT"
-          echo "fallback_url=$FALLBACK_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "storage=release"
+            echo "fallback_url=$FALLBACK_URL"
+          } >> "$GITHUB_OUTPUT"
         else
-          echo "storage=failed" >> "$GITHUB_OUTPUT"
-          echo "fallback_url=" >> "$GITHUB_OUTPUT"
+          {
+            echo "storage=failed"
+            echo "fallback_url="
+          } >> "$GITHUB_OUTPUT"
           echo "Artifact storage failed in both primary and fallback paths." >&2
           exit 1
         fi
