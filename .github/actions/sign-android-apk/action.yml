@@ -1,5 +1,5 @@
 name: Sign Android APK
-description: Align, sign, and verify an Android APK using PEM certificate/private-key material.
+description: Align, sign, and verify an Android APK using either a base64 keystore or PEM certificate/private-key material.
 inputs:
   apk:
     description: Input APK path.
@@ -7,30 +7,76 @@ inputs:
   output:
     description: Signed APK output path.
     required: true
+  keystore_base64:
+    description: Optional base64-encoded Android keystore.
+    required: false
+    default: ''
+  key_alias:
+    description: Keystore key alias.
+    required: false
+    default: ''
+  keystore_password:
+    description: Keystore password.
+    required: false
+    default: ''
+  key_password:
+    description: Key password.
+    required: false
+    default: ''
   certificate_pem:
-    description: PEM certificate contents or base64-encoded PEM.
-    required: true
+    description: PEM certificate contents or base64-encoded PEM when not using a keystore.
+    required: false
+    default: ''
   private_key_pem:
-    description: PEM private key contents or base64-encoded PEM.
-    required: true
+    description: PEM private key contents or base64-encoded PEM when not using a keystore.
+    required: false
+    default: ''
   private_key_password:
-    description: Optional private-key password.
+    description: Optional PEM private-key password.
+    required: false
+    default: ''
+  expected_cert_sha256:
+    description: Optional expected signer certificate SHA-256 digest.
     required: false
     default: ''
 runs:
   using: composite
   steps:
-    - name: Prepare Android signing assets
+    - name: Prepare Android signing material
       shell: bash
       env:
+        KEYSTORE_BASE64: ${{ inputs.keystore_base64 }}
+        KEY_ALIAS: ${{ inputs.key_alias }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
+        KEY_PASSWORD: ${{ inputs.key_password }}
         CERTIFICATE_PEM: ${{ inputs.certificate_pem }}
         PRIVATE_KEY_PEM: ${{ inputs.private_key_pem }}
         PRIVATE_KEY_PASSWORD: ${{ inputs.private_key_password }}
       run: |
         set -euo pipefail
+        if [[ -n "$KEYSTORE_BASE64" ]]; then
+          : "${KEY_ALIAS:?key_alias is required with keystore_base64}"
+          : "${KEYSTORE_PASSWORD:?keystore_password is required with keystore_base64}"
+          keystore="$RUNNER_TEMP/commonwork-android.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          {
+            echo "COMMONWORK_ANDROID_MODE=keystore"
+            echo "COMMONWORK_ANDROID_KEYSTORE=$keystore"
+            echo "COMMONWORK_ANDROID_ALIAS=$KEY_ALIAS"
+            echo "COMMONWORK_ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "COMMONWORK_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          exit 0
+        fi
+
+        [[ -n "$CERTIFICATE_PEM" && -n "$PRIVATE_KEY_PEM" ]] || {
+          echo "Provide either keystore_base64 or both certificate_pem and private_key_pem." >&2
+          exit 2
+        }
+
         tmpdir="$(mktemp -d "$RUNNER_TEMP/android-signing.XXXXXX")"
         trap 'rm -rf "$tmpdir"' EXIT
-
         write_secret() {
           local value="$1" destination="$2"
           if [[ "$value" == *"-----BEGIN"* ]]; then
@@ -41,21 +87,19 @@ runs:
 ' "$value" > "$destination"
           fi
         }
-
         write_secret "$PRIVATE_KEY_PEM" "$tmpdir/key.pem"
         write_secret "$CERTIFICATE_PEM" "$tmpdir/cert.pem"
 
-        key_path="$RUNNER_TEMP/android-signing-key.pk8"
-        cert_path="$RUNNER_TEMP/android-signing-cert.pem"
+        key_path="$RUNNER_TEMP/commonwork-android-signing-key.pk8"
+        cert_path="$RUNNER_TEMP/commonwork-android-signing-cert.pem"
         passin_args=()
         if [[ -n "$PRIVATE_KEY_PASSWORD" ]]; then
           passin_args=(-passin "pass:$PRIVATE_KEY_PASSWORD")
         fi
-
         openssl pkcs8 -topk8 -inform PEM -outform DER           -in "$tmpdir/key.pem" -out "$key_path" -nocrypt "${passin_args[@]}"
         cp "$tmpdir/cert.pem" "$cert_path"
-
         {
+          echo "COMMONWORK_ANDROID_MODE=pem"
           echo "COMMONWORK_ANDROID_KEY=$key_path"
           echo "COMMONWORK_ANDROID_CERT=$cert_path"
         } >> "$GITHUB_ENV"
@@ -65,12 +109,12 @@ runs:
       env:
         INPUT_APK: ${{ inputs.apk }}
         OUTPUT_APK: ${{ inputs.output }}
+        EXPECTED_CERT_SHA256: ${{ inputs.expected_cert_sha256 }}
       run: |
         set -euo pipefail
         [[ -f "$INPUT_APK" ]] || { echo "APK not found: $INPUT_APK" >&2; exit 2; }
         sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
         [[ -n "$sdk_root" ]] || { echo "ANDROID_SDK_ROOT/ANDROID_HOME is not set." >&2; exit 2; }
-
         build_tools="$(find "$sdk_root/build-tools" -mindepth 1 -maxdepth 1 -type d -printf '%f
 ' | sort -V | tail -1)"
         [[ -n "$build_tools" ]] || { echo "Android build-tools not found." >&2; exit 2; }
@@ -83,6 +127,29 @@ runs:
         mkdir -p "$(dirname "$OUTPUT_APK")"
         aligned="$RUNNER_TEMP/commonwork-aligned.apk"
         "$zipalign" -f -p 4 "$INPUT_APK" "$aligned"
-        "$apksigner" sign --key "$COMMONWORK_ANDROID_KEY" --cert "$COMMONWORK_ANDROID_CERT" --out "$OUTPUT_APK" "$aligned"
-        "$apksigner" verify --print-certs "$OUTPUT_APK"
+
+        if [[ "$COMMONWORK_ANDROID_MODE" == "keystore" ]]; then
+          export COMMONWORK_KS_PASS="$COMMONWORK_ANDROID_KEYSTORE_PASSWORD"
+          export COMMONWORK_KEY_PASS="$COMMONWORK_ANDROID_KEY_PASSWORD"
+          args=(sign --ks "$COMMONWORK_ANDROID_KEYSTORE" --ks-key-alias "$COMMONWORK_ANDROID_ALIAS" --ks-pass env:COMMONWORK_KS_PASS)
+          if [[ -n "$COMMONWORK_ANDROID_KEY_PASSWORD" ]]; then
+            args+=(--key-pass env:COMMONWORK_KEY_PASS)
+          fi
+          "$apksigner" "${args[@]}" --out "$OUTPUT_APK" "$aligned"
+        else
+          "$apksigner" sign --key "$COMMONWORK_ANDROID_KEY" --cert "$COMMONWORK_ANDROID_CERT" --out "$OUTPUT_APK" "$aligned"
+        fi
+
+        verify_output="$("$apksigner" verify --verbose --print-certs "$OUTPUT_APK")"
+        printf '%s
+' "$verify_output"
+        if [[ -n "$EXPECTED_CERT_SHA256" ]]; then
+          actual="$(printf '%s
+' "$verify_output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          expected="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          [[ -n "$actual" && "$actual" == "$expected" ]] || {
+            echo "APK signer certificate does not match expected_cert_sha256." >&2
+            exit 1
+          }
+        fi
         test -s "$OUTPUT_APK"
