@@ -1,0 +1,121 @@
+name: Upload artifact with release fallback
+description: Upload an artifact to GitHub Actions storage and fall back to a rolling prerelease asset if storage is unavailable.
+inputs:
+  name:
+    description: Artifact name.
+    required: true
+  path:
+    description: File or directory to upload.
+    required: true
+  retention_days:
+    description: Actions artifact retention in days.
+    required: false
+    default: '3'
+  fallback:
+    description: Enable rolling prerelease fallback.
+    required: false
+    default: 'true'
+  fallback_tag:
+    description: Rolling prerelease tag.
+    required: false
+    default: ci-snapshots
+  github_token:
+    description: Token used for release fallback.
+    required: false
+    default: ''
+outputs:
+  storage:
+    description: actions, release, or failed.
+    value: ${{ steps.result.outputs.storage }}
+  fallback_url:
+    description: URL of the fallback release asset when used.
+    value: ${{ steps.result.outputs.fallback_url }}
+runs:
+  using: composite
+  steps:
+    - name: Upload Actions artifact
+      id: upload
+      continue-on-error: true
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention_days }}
+
+    - name: Package fallback payload
+      id: package
+      if: steps.upload.outcome == 'failure' && inputs.fallback == 'true'
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        ARTIFACT_NAME: ${{ inputs.name }}
+      run: |
+        set -euo pipefail
+        safe_name="$(printf '%s' "$ARTIFACT_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//')"
+        [[ -n "$safe_name" ]] || safe_name=artifact
+        payload="$RUNNER_TEMP/$safe_name.zip"
+        python - "$INPUT_PATH" "$payload" <<'PY'
+import glob, os, sys, zipfile
+src, out = sys.argv[1], sys.argv[2]
+matches = glob.glob(src, recursive=True)
+if not matches and os.path.exists(src):
+    matches = [src]
+if not matches:
+    raise SystemExit(f"No files found for fallback path: {src}")
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for match in matches:
+        if os.path.isdir(match):
+            base = os.path.dirname(match)
+            for root, _, files in os.walk(match):
+                for f in files:
+                    p = os.path.join(root, f)
+                    z.write(p, os.path.relpath(p, base))
+        else:
+            z.write(match, os.path.basename(match))
+PY
+        echo "path=$payload" >> "$GITHUB_OUTPUT"
+        echo "name=$(basename "$payload")" >> "$GITHUB_OUTPUT"
+
+    - name: Upload fallback release asset
+      id: fallback
+      if: steps.upload.outcome == 'failure' && inputs.fallback == 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        FALLBACK_TAG: ${{ inputs.fallback_tag }}
+        FALLBACK_PATH: ${{ steps.package.outputs.path }}
+        FALLBACK_NAME: ${{ steps.package.outputs.name }}
+      run: |
+        set -euo pipefail
+        [[ -n "$GH_TOKEN" ]] || {
+          echo "github_token is required when release fallback is enabled." >&2
+          exit 2
+        }
+        gh release view "$FALLBACK_TAG" >/dev/null 2>&1 ||           gh release create "$FALLBACK_TAG"             --title "CI snapshot storage"             --notes "Rolling prerelease used when Actions artifact storage is unavailable."             --prerelease             --target "$GITHUB_SHA"
+        gh release upload "$FALLBACK_TAG" "$FALLBACK_PATH" --clobber
+        echo "url=https://github.com/$GITHUB_REPOSITORY/releases/download/$FALLBACK_TAG/$FALLBACK_NAME" >> "$GITHUB_OUTPUT"
+
+    - name: Resolve storage result
+      id: result
+      shell: bash
+      env:
+        UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        FALLBACK_OUTCOME: ${{ steps.fallback.outcome }}
+        FALLBACK_URL: ${{ steps.fallback.outputs.url }}
+        FALLBACK_ENABLED: ${{ inputs.fallback }}
+      run: |
+        set -euo pipefail
+        if [[ "$UPLOAD_OUTCOME" == "success" ]]; then
+          echo "storage=actions" >> "$GITHUB_OUTPUT"
+          echo "fallback_url=" >> "$GITHUB_OUTPUT"
+        elif [[ "$FALLBACK_ENABLED" == "true" && "$FALLBACK_OUTCOME" == "success" ]]; then
+          echo "storage=release" >> "$GITHUB_OUTPUT"
+          echo "fallback_url=$FALLBACK_URL" >> "$GITHUB_OUTPUT"
+        else
+          echo "storage=failed" >> "$GITHUB_OUTPUT"
+          echo "fallback_url=" >> "$GITHUB_OUTPUT"
+          echo "Artifact storage failed in both primary and fallback paths." >&2
+          exit 1
+        fi
