@@ -1,0 +1,62 @@
+name: Set up .NET
+description: Install the .NET SDK from global.json or an explicit version, with NuGet caching enabled by default.
+inputs:
+  global_json_file:
+    description: Path to global.json. Leave empty to use dotnet_version.
+    required: false
+    default: global.json
+  dotnet_version:
+    description: Explicit .NET SDK version or range when global_json_file is empty.
+    required: false
+    default: ''
+  cache:
+    description: Cache the NuGet global-packages directory.
+    required: false
+    default: 'true'
+  cache_dependency_path:
+    description: Optional dependency file path/glob used for NuGet cache invalidation.
+    required: false
+    default: ''
+outputs:
+  dotnet-version:
+    description: Resolved SDK version selected by dotnet.
+    value: ${{ steps.resolved.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Set up .NET from global.json
+      if: inputs.global_json_file != ''
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        global-json-file: ${{ inputs.global_json_file }}
+
+    - name: Set up .NET version
+      if: inputs.global_json_file == ''
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+
+    - name: Resolve installed .NET SDK version
+      id: resolved
+      shell: bash
+      run: echo "version=$(dotnet --version)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache NuGet packages from explicit dependency path
+      if: inputs.cache == 'true' && inputs.cache_dependency_path != ''
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ steps.resolved.outputs.version }}-${{ hashFiles(inputs.cache_dependency_path) }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-${{ steps.resolved.outputs.version }}-
+          ${{ runner.os }}-nuget-
+
+    - name: Cache NuGet packages from project inputs
+      if: inputs.cache == 'true' && inputs.cache_dependency_path == ''
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ steps.resolved.outputs.version }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj', '**/*.fsproj', '**/*.vbproj', '**/*.props', '**/*.targets', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-${{ steps.resolved.outputs.version }}-
+          ${{ runner.os }}-nuget-

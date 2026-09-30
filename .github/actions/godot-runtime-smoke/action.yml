@@ -1,0 +1,37 @@
+name: Run Godot runtime smoke
+description: Run a Godot project's main scene headlessly for a bounded duration and fail on runtime/script errors.
+inputs:
+  godot:
+    description: Absolute path to the Godot executable.
+    required: true
+  working_directory:
+    description: Godot project directory.
+    required: false
+    default: '.'
+  runtime_seconds:
+    description: Number of seconds to run before quitting.
+    required: false
+    default: '3'
+runs:
+  using: composite
+  steps:
+    - name: Run headless runtime smoke
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GODOT: ${{ inputs.godot }}
+        RUNTIME_SECONDS: ${{ inputs.runtime_seconds }}
+      run: |
+        set -euo pipefail
+        log="$RUNNER_TEMP/godot-runtime.log"
+        set +e
+        "$GODOT" --headless --path . --quit-after "$RUNTIME_SECONDS" 2>&1 | tee "$log"
+        status=${PIPESTATUS[0]}
+        set -e
+        if [[ "$status" -ne 0 ]]; then
+          exit "$status"
+        fi
+        if grep -Eiv 'ERROR: [0-9]+ resources? still in use at exit' "$log"           | grep -Eiq 'Unhandled exception|System\.[A-Za-z]+Exception|SCRIPT ERROR|ERROR:.*(script|resource)'; then
+          echo "Godot runtime smoke reported an error." >&2
+          exit 1
+        fi

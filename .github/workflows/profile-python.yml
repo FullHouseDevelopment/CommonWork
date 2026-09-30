@@ -115,18 +115,12 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Set up Python
-        if: ${{ !inputs.cache }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: $/.github/actions/setup-python
         with:
-          python-version: ${{ matrix.python }}
-
-      - name: Set up Python with dependency cache
-        if: ${{ inputs.cache }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: ${{ matrix.python }}
-          cache: ${{ inputs.cache_type }}
-          cache-dependency-path: ${{ inputs.cache_dependency_path }}
+          python_version: ${{ matrix.python }}
+          cache: ${{ inputs.cache }}
+          cache_type: ${{ inputs.cache_type }}
+          cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
       - name: Install dependencies
         if: inputs.install_command != ''

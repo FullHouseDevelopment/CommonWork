@@ -1,0 +1,35 @@
+name: Set up Node.js
+description: Install Node.js with optional package-manager caching.
+inputs:
+  node_version:
+    description: Node.js version or range.
+    required: false
+    default: '24'
+  cache:
+    description: Enable setup-node package-manager caching.
+    required: false
+    default: 'true'
+  package_manager:
+    description: Package manager used by setup-node caching.
+    required: false
+    default: npm
+  cache_dependency_path:
+    description: Lockfile path used for cache invalidation.
+    required: false
+    default: package-lock.json
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      if: inputs.cache != 'true'
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    - name: Set up Node.js with package cache
+      if: inputs.cache == 'true'
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: ${{ inputs.package_manager }}
+        cache-dependency-path: ${{ inputs.cache_dependency_path }}

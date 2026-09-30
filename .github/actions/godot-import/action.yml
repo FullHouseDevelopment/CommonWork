@@ -1,0 +1,32 @@
+name: Validate Godot import
+description: Open a Godot project headlessly and fail on script/resource validation errors.
+inputs:
+  godot:
+    description: Absolute path to the Godot executable.
+    required: true
+  working_directory:
+    description: Godot project directory.
+    required: false
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - name: Import project in editor
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GODOT: ${{ inputs.godot }}
+      run: |
+        set -euo pipefail
+        log="$RUNNER_TEMP/godot-editor.log"
+        set +e
+        "$GODOT" --headless --path . --editor --quit 2>&1 | tee "$log"
+        status=${PIPESTATUS[0]}
+        set -e
+        if [[ "$status" -ne 0 ]]; then
+          exit "$status"
+        fi
+        if grep -Eiv 'ERROR: [0-9]+ resources? still in use at exit' "$log"           | grep -Eiq 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:.*(script|resource)'; then
+          echo "Godot reported a script/resource validation error." >&2
+          exit 1
+        fi

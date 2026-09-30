@@ -40,33 +40,13 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up .NET from global.json
-      if: inputs.global_json_file != '' && inputs.cache != 'true'
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+    - name: Set up .NET
+      uses: $/.github/actions/setup-dotnet
       with:
-        global-json-file: ${{ inputs.global_json_file }}
-
-    - name: Set up .NET version
-      if: inputs.global_json_file == '' && inputs.cache != 'true'
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
-      with:
-        dotnet-version: ${{ inputs.dotnet_version }}
-
-    - name: Set up .NET from global.json with NuGet cache
-      if: inputs.global_json_file != '' && inputs.cache == 'true'
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
-      with:
-        global-json-file: ${{ inputs.global_json_file }}
-        cache: true
-        cache-dependency-path: ${{ inputs.cache_dependency_path }}
-
-    - name: Set up .NET version with NuGet cache
-      if: inputs.global_json_file == '' && inputs.cache == 'true'
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
-      with:
-        dotnet-version: ${{ inputs.dotnet_version }}
-        cache: true
-        cache-dependency-path: ${{ inputs.cache_dependency_path }}
+        global_json_file: ${{ inputs.global_json_file }}
+        dotnet_version: ${{ inputs.dotnet_version }}
+        cache: ${{ inputs.cache }}
+        cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
     - name: Repository-specific setup
       if: inputs.setup_command != ''

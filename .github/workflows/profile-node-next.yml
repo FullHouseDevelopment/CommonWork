@@ -104,18 +104,12 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Set up Node.js
-        if: ${{ !inputs.cache }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: $/.github/actions/setup-node
         with:
-          node-version: ${{ inputs.node_version }}
-
-      - name: Set up Node.js with package cache
-        if: ${{ inputs.cache }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: ${{ inputs.node_version }}
-          cache: ${{ inputs.package_manager }}
-          cache-dependency-path: ${{ inputs.cache_dependency_path }}
+          node_version: ${{ inputs.node_version }}
+          cache: ${{ inputs.cache }}
+          package_manager: ${{ inputs.package_manager }}
+          cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
       - name: Package-manager setup
         if: inputs.setup_command != ''

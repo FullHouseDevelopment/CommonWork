@@ -1,0 +1,47 @@
+name: Export Godot project
+description: Export a Godot project with a named preset and verify the requested output exists.
+inputs:
+  godot:
+    description: Absolute path to the Godot executable.
+    required: true
+  preset:
+    description: Godot export preset name.
+    required: true
+  output:
+    description: Export output path relative to working_directory.
+    required: true
+  working_directory:
+    description: Godot project directory.
+    required: false
+    default: '.'
+  debug:
+    description: Use --export-debug instead of --export-release.
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Export project
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GODOT: ${{ inputs.godot }}
+        PRESET: ${{ inputs.preset }}
+        OUTPUT: ${{ inputs.output }}
+        EXPORT_DEBUG: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+        [[ -n "$OUTPUT" ]] || {
+          echo "output is required." >&2
+          exit 2
+        }
+
+        mkdir -p "$(dirname "$OUTPUT")"
+        if [[ "$EXPORT_DEBUG" == "true" ]]; then
+          mode="--export-debug"
+        else
+          mode="--export-release"
+        fi
+
+        "$GODOT" --headless --path . "$mode" "$PRESET" "$OUTPUT"
+        test -s "$OUTPUT"

@@ -108,37 +108,13 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - name: Set up .NET from global.json
-        if: inputs.global_json_file != ''
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Set up .NET
+        uses: $/.github/actions/setup-dotnet
         with:
-          global-json-file: ${{ inputs.global_json_file }}
-
-      - name: Set up .NET version
-        if: inputs.global_json_file == ''
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: ${{ inputs.dotnet_version }}
-
-      - name: Cache NuGet packages from explicit dependency path
-        if: inputs.cache && inputs.cache_dependency_path != ''
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-${{ hashFiles(inputs.cache_dependency_path) }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-
-            ${{ runner.os }}-nuget-
-
-      - name: Cache NuGet packages from project inputs
-        if: inputs.cache && inputs.cache_dependency_path == ''
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj', '**/*.props', '**/*.targets', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-${{ inputs.dotnet_version || 'global-json' }}-
-            ${{ runner.os }}-nuget-
+          global_json_file: ${{ inputs.global_json_file }}
+          dotnet_version: ${{ inputs.dotnet_version }}
+          cache: ${{ inputs.cache }}
+          cache_dependency_path: ${{ inputs.cache_dependency_path }}
 
       - name: Repository-specific setup
         if: inputs.setup_command != ''
