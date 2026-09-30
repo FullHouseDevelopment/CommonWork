@@ -17,6 +17,10 @@ inputs:
     description: Dependency file path used by setup-dotnet caching.
     required: false
     default: ''
+outputs:
+  dotnet-version:
+    description: Resolved SDK version selected by dotnet.
+    value: ${{ steps.resolved.outputs.version }}
 runs:
   using: composite
   steps:
@@ -47,3 +51,8 @@ runs:
         dotnet-version: ${{ inputs.dotnet_version }}
         cache: true
         cache-dependency-path: ${{ inputs.cache_dependency_path }}
+
+    - name: Resolve installed .NET SDK version
+      id: resolved
+      shell: bash
+      run: echo "version=$(dotnet --version)" >> "$GITHUB_OUTPUT"
