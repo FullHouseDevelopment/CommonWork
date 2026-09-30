@@ -56,24 +56,24 @@ runs:
         [[ -n "$safe_name" ]] || safe_name=artifact
         payload="$RUNNER_TEMP/$safe_name.zip"
         python - "$INPUT_PATH" "$payload" <<'PY'
-import glob, os, sys, zipfile
-src, out = sys.argv[1], sys.argv[2]
-matches = glob.glob(src, recursive=True)
-if not matches and os.path.exists(src):
-    matches = [src]
-if not matches:
-    raise SystemExit(f"No files found for fallback path: {src}")
-with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-    for match in matches:
-        if os.path.isdir(match):
-            base = os.path.dirname(match)
-            for root, _, files in os.walk(match):
-                for f in files:
-                    p = os.path.join(root, f)
-                    z.write(p, os.path.relpath(p, base))
-        else:
-            z.write(match, os.path.basename(match))
-PY
+        import glob, os, sys, zipfile
+        src, out = sys.argv[1], sys.argv[2]
+        matches = glob.glob(src, recursive=True)
+        if not matches and os.path.exists(src):
+            matches = [src]
+        if not matches:
+            raise SystemExit(f"No files found for fallback path: {src}")
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+            for match in matches:
+                if os.path.isdir(match):
+                    base = os.path.dirname(match)
+                    for root, _, files in os.walk(match):
+                        for f in files:
+                            p = os.path.join(root, f)
+                            z.write(p, os.path.relpath(p, base))
+                else:
+                    z.write(match, os.path.basename(match))
+        PY
         {
           echo "path=$payload"
           echo "name=$(basename "$payload")"
