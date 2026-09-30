@@ -137,7 +137,7 @@ jobs:
 
       - name: Set up .NET
         if: inputs.dotnet && inputs.dotnet_version != ''
-        uses: ./.github/actions/setup-dotnet
+        uses: $/.github/actions/setup-dotnet
         with:
           global_json_file: ''
           dotnet_version: ${{ inputs.dotnet_version }}
@@ -156,7 +156,7 @@ jobs:
       - name: Set up Godot
         if: inputs.editor_import || (inputs.runtime_smoke && (inputs.tier == 'heavy' || inputs.runtime_smoke_in_light)) || (inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light))
         id: godot
-        uses: ./.github/actions/setup-godot
+        uses: $/.github/actions/setup-godot
         with:
           godot_version: ${{ inputs.godot_version }}
           dotnet: ${{ inputs.dotnet }}
@@ -176,14 +176,14 @@ jobs:
 
       - name: Import project in editor
         if: inputs.editor_import
-        uses: ./.github/actions/godot-import
+        uses: $/.github/actions/godot-import
         with:
           godot: ${{ steps.godot.outputs.binary }}
           working_directory: ${{ inputs.working_directory }}
 
       - name: Run headless runtime smoke
         if: inputs.runtime_smoke && (inputs.tier == 'heavy' || inputs.runtime_smoke_in_light)
-        uses: ./.github/actions/godot-runtime-smoke
+        uses: $/.github/actions/godot-runtime-smoke
         with:
           godot: ${{ steps.godot.outputs.binary }}
           working_directory: ${{ inputs.working_directory }}
@@ -191,7 +191,7 @@ jobs:
 
       - name: Install matching export templates
         if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light)
-        uses: ./.github/actions/install-godot-templates
+        uses: $/.github/actions/install-godot-templates
         with:
           godot_version: ${{ inputs.godot_version }}
           dotnet: ${{ inputs.dotnet }}
@@ -199,7 +199,7 @@ jobs:
 
       - name: Export project
         if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light)
-        uses: ./.github/actions/godot-export
+        uses: $/.github/actions/godot-export
         with:
           godot: ${{ steps.godot.outputs.binary }}
           working_directory: ${{ inputs.working_directory }}
@@ -210,7 +210,7 @@ jobs:
       - name: Store export artifact
         id: store-export-artifact
         if: inputs.export_preset != '' && (inputs.tier == 'heavy' || inputs.export_in_light) && inputs.upload_artifact
-        uses: ./.github/actions/upload-artifact-with-fallback
+        uses: $/.github/actions/upload-artifact-with-fallback
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ inputs.working_directory }}/${{ inputs.export_output }}
