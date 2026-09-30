@@ -1,0 +1,49 @@
+name: Set up .NET
+description: Install the .NET SDK from global.json or an explicit version, with optional NuGet caching.
+inputs:
+  global_json_file:
+    description: Path to global.json. Leave empty to use dotnet_version.
+    required: false
+    default: global.json
+  dotnet_version:
+    description: Explicit .NET SDK version or range when global_json_file is empty.
+    required: false
+    default: ''
+  cache:
+    description: Enable setup-dotnet NuGet caching.
+    required: false
+    default: 'false'
+  cache_dependency_path:
+    description: Dependency file path used by setup-dotnet caching.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Set up .NET from global.json
+      if: inputs.global_json_file != '' && inputs.cache != 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        global-json-file: ${{ inputs.global_json_file }}
+
+    - name: Set up .NET version
+      if: inputs.global_json_file == '' && inputs.cache != 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+
+    - name: Set up .NET from global.json with NuGet cache
+      if: inputs.global_json_file != '' && inputs.cache == 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        global-json-file: ${{ inputs.global_json_file }}
+        cache: true
+        cache-dependency-path: ${{ inputs.cache_dependency_path }}
+
+    - name: Set up .NET version with NuGet cache
+      if: inputs.global_json_file == '' && inputs.cache == 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+        cache: true
+        cache-dependency-path: ${{ inputs.cache_dependency_path }}
