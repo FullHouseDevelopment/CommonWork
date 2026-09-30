@@ -59,6 +59,11 @@ jobs:
             -ignore 'invalid format because ref is missing' \
             -ignore 'not following the format .* nor "./path/to/workflow.yml"'
 
+      - name: Validate composite action manifests
+        shell: bash
+        run: |
+          ruby -e 'require "yaml"; Dir[".github/actions/*/action.{yml,yaml}"].sort.each { |path| YAML.load_file(path); puts "validated #{path}" }'
+
   snapshot-intent-selftest:
     name: Snapshot intent main-only self-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -127,7 +127,7 @@ on:
         description: Job timeout when Android runtime smoke is enabled
         required: false
         type: number
-        default: 45
+        default: 20
 
       windows_enabled:
         description: Run Windows product-shape validation
