@@ -126,7 +126,7 @@ jobs:
   validate:
     name: Godot ${{ inputs.godot_version }} ${{ inputs.dotnet && '.NET' || 'Standard' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
       - name: Check out caller repository
