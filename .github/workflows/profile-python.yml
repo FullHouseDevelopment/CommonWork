@@ -115,7 +115,7 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Set up Python
-        uses: ./.github/actions/setup-python
+        uses: $/.github/actions/setup-python
         with:
           python_version: ${{ matrix.python }}
           cache: ${{ inputs.cache }}
