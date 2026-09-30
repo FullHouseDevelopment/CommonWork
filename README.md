@@ -39,7 +39,7 @@ External callers should pin actions and workflows to a full CommonWork commit SH
 - `.github/workflows/snapshot-intent.yml`
 - `.github/workflows/version-intent.yml`
 - `.github/workflows/version-tag.yml`
-- `.github/workflows/release.yml` — opt-in release orchestration for .NET, Node, Python, and Godot profiles
+- `.github/workflows/release-validation.yml` — opt-in release-grade validation/packaging orchestration for .NET, Node, Python, and Godot profiles; publication remains consumer-owned
 
 Consumers should pin reusable workflows to a full CommonWork commit SHA. The shared profiles themselves are composed from the small actions above so there is one implementation of each common capability rather than a workflow-specific copy.
 
