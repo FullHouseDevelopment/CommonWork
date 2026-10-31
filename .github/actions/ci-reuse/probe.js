@@ -82,9 +82,24 @@ async function probe(env, get) {
         !SHA.test(run.head_sha || '') || run.head_sha === head ||
         run.id === Number(env.GITHUB_RUN_ID) ||
         run.path !== '.github/workflows/' + workflow ||
-        run.head_branch !== pr.head.ref || !Array.isArray(run.pull_requests) ||
-        !run.pull_requests.some(p => p.number === prNumber &&
-          p.base?.sha === base && p.base?.ref === pr.base.ref)) continue;
+        run.head_branch !== pr.head.ref) continue;
+    let belongsToPr = Array.isArray(run.pull_requests) &&
+      run.pull_requests.some(p => p.number === prNumber &&
+        p.base?.sha === base && p.base?.ref === pr.base.ref);
+    // GitHub sometimes returns an empty pull_requests collection for old runs.
+    // Confirm the commit-to-PR relationship instead of trusting the branch name.
+    if (!belongsToPr && (!run.pull_requests || !run.pull_requests.length)) {
+      const associated = await get(root + '/commits/' + run.head_sha + '/pulls?per_page=100');
+      belongsToPr = Array.isArray(associated) && associated.length < 100 &&
+        associated.some(p => p.number === prNumber &&
+          p.base?.ref === pr.base.ref);
+    }
+    if (!belongsToPr) continue;
+    // The *current* base must already be in the previous source commit's
+    // ancestry. A moved base cannot borrow proof from an older base checkout.
+    const ancestry = await get(root + '/compare/' + base + '...' + run.head_sha);
+    if (!['ahead', 'identical'].includes(ancestry.status) ||
+        ancestry.behind_by !== 0) continue;
     const comparison = await get(root + '/compare/' + run.head_sha + '...' + head);
     if (comparison.status !== 'ahead' || comparison.behind_by !== 0 ||
         comparison.ahead_by < 1 || comparison.total_commits > 250 ||
