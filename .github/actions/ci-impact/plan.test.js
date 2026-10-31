@@ -79,13 +79,13 @@ test('PR head/base drift fails closed instead of accepting a stale file list', a
   const root = '/repos/FullHouseDevelopment/AutoDev';
   try {
     fs.writeFileSync(eventPath, JSON.stringify({
-      pull_request: { number: 17, head: { sha: head }, base: { sha: base } },
+      pull_request: { number: 17, head: { sha: head }, base: { sha: base, ref: 'develop' } },
     }));
     let prCalls = 0;
     const get = async endpoint => {
       if (endpoint === root + '/pulls/17') {
         prCalls++;
-        return { base: { sha: base, repo: { full_name: 'FullHouseDevelopment/AutoDev' } },
+        return { base: { sha: base, ref: 'develop', repo: { full_name: 'FullHouseDevelopment/AutoDev' } },
           head: { sha: prCalls === 1 ? head : 'c'.repeat(40) } };
       }
       if (endpoint.startsWith(root + '/contents/')) {
