@@ -1,0 +1,60 @@
+name: Reusable change-aware CI impact plan
+
+on:
+  workflow_call:
+    inputs:
+      force_full:
+        description: Force full CI; default on push, release and dispatch.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      workflow:
+        value: ${{ jobs.plan.outputs.workflow }}
+      python:
+        value: ${{ jobs.plan.outputs.python }}
+      control:
+        value: ${{ jobs.plan.outputs.control }}
+      dotnet:
+        value: ${{ jobs.plan.outputs.dotnet }}
+      packaging:
+        value: ${{ jobs.plan.outputs.packaging }}
+      box:
+        value: ${{ jobs.plan.outputs.box }}
+      windows:
+        value: ${{ jobs.plan.outputs.windows }}
+      oci:
+        value: ${{ jobs.plan.outputs.oci }}
+      version:
+        value: ${{ jobs.plan.outputs.version }}
+      full:
+        value: ${{ jobs.plan.outputs.full }}
+      reason:
+        value: ${{ jobs.plan.outputs.reason }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  plan:
+    name: Classify changed files
+    runs-on: ubuntu-latest
+    outputs:
+      workflow: ${{ steps.impact.outputs.workflow }}
+      python: ${{ steps.impact.outputs.python }}
+      control: ${{ steps.impact.outputs.control }}
+      dotnet: ${{ steps.impact.outputs.dotnet }}
+      packaging: ${{ steps.impact.outputs.packaging }}
+      box: ${{ steps.impact.outputs.box }}
+      windows: ${{ steps.impact.outputs.windows }}
+      oci: ${{ steps.impact.outputs.oci }}
+      version: ${{ steps.impact.outputs.version }}
+      full: ${{ steps.impact.outputs.full }}
+      reason: ${{ steps.impact.outputs.reason }}
+    steps:
+      - name: Classify the PR against the trusted integration policy
+        id: impact
+        uses: $/.github/actions/ci-impact
+        with:
+          force-full: ${{ inputs.force_full }}
