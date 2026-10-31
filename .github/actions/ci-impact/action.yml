@@ -1,0 +1,33 @@
+name: CommonWork CI impact planner
+description: Select required CI groups from a trusted base-branch policy and GitHub PR files.
+inputs:
+  force-full:
+    description: Force full CI; this can only increase required checks.
+    required: false
+    default: 'false'
+outputs:
+  workflow:
+    description: Run workflow policy and syntax validation
+  python:
+    description: Run Python tests
+  control:
+    description: Run cross-runtime control replay
+  dotnet:
+    description: Run native .NET validation
+  packaging:
+    description: Run installer validation
+  box:
+    description: Run Box validation
+  windows:
+    description: Run Windows verifier
+  oci:
+    description: Run OCI integration
+  version:
+    description: Run version intent validation
+  full:
+    description: Full CI selected
+  reason:
+    description: Why this plan was selected
+runs:
+  using: node24
+  main: plan.js
