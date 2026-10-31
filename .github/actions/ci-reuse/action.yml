@@ -1,0 +1,28 @@
+name: CommonWork same-PR CI result reuse
+description: Verify successful earlier CI jobs on unchanged inputs within one PR; otherwise run.
+inputs:
+  workflow:
+    required: true
+    description: Trusted CI entry workflow filename, e.g. ci-develop.yml
+  force-full:
+    required: false
+    default: 'false'
+    description: Disable result reuse for this invocation
+outputs:
+  python:
+    description: Reusable Python Ubuntu success
+  python_windows:
+    description: Reusable Python Windows success
+  control:
+    description: Reusable control contract replay success
+  dotnet_linux:
+    description: Reusable .NET Linux success
+  dotnet_windows:
+    description: Reusable .NET Windows success
+  python_reference:
+    description: Reusable reference Python suite success
+  reason:
+    description: Evidence summary or conservative fallback reason
+runs:
+  using: node24
+  main: probe.js
