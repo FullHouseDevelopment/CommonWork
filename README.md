@@ -81,3 +81,57 @@ godot:
 ```
 
 Set `artifact_release_fallback: false` to keep the old fail-on-artifact-upload behavior, or `artifact_release_tag` to use a different rolling prerelease tag.
+
+
+## Change-aware CI planning for consumers
+
+Use `.github/workflows/ci-impact.yml` as a lightweight first job in each participating
+consumer CI. Consumers keep a small `.github/ci-impact.json` file with version 1,
+`fallback: "full"`, and arrays of path globs under `groups`.
+
+The classifier resolves the PR and changed files from the **GitHub API**, and reads
+the impact policy from the **exact PR base SHA**, never from the untrusted PR head.
+Renames inspect both old and new paths. Unknown files, errors, missing policies,
+policy modifications and changes explicitly in the `full` group require full CI.
+Every plan runs the `workflow` policy/syntax group.
+
+Group outputs: `workflow`, `python`, `control`, `dotnet`, `packaging`,
+`box`, `windows`, `oci`, `version`, `full`, and `reason`.
+Each is the string `true` or `false` except `reason`. The plan publishes
+a GitHub Step Summary explaining selections. Non-PR workflows (push/release/
+manual dispatch) are **always full**, and `force_full` may only expand scope.
+
+Consumers must pin the reusable workflow to a full CommonWork commit SHA.
+Only the **planner** owns change classification; callers use simple `needs` and
+`if` expressions. A fixed required CI gate must validate that each planned
+group actually passed; GitHub's skipped-job conclusion alone is not enough.
+Keep draft guards ahead of the planner, and keep main/release CI unconditionally
+full. On first adoption, the trusted base branch has no policy yet, so the
+first integration PR intentionally runs full CI.
+
+Sample policy:
+
+```json
+{
+  "version": 1,
+  "fallback": "full",
+  "groups": {
+    "workflow": [".github/workflows/**", ".github/actions/**"],
+    "python": ["automation/**"],
+    "control": ["src/Control/**"],
+    "dotnet": ["src/**"],
+    "packaging": ["deploy/**"],
+    "box": ["box/**"],
+    "windows": ["windows/**"],
+    "oci": ["integrations/oci/**"],
+    "version": ["version/**"],
+    "docs": ["docs/**", "*.md"],
+    "full": [".github/ci-impact.json"]
+  }
+}
+```
+
+Policies are deliberately repository-specific. Cover shared/build/test inputs
+conservatively; any unclassified path makes CI full rather than allowing a false
+negative. Overrides are GitHub-authorized workflow dispatches, not PR-body
+commands.
