@@ -105,9 +105,13 @@ async function loadPrPlan(env, fetchJson) {
   const root = '/repos/' + repository;
   const pr = await fetchJson(root + '/pulls/' + number);
   const baseSha = pr.base?.sha;
+  const headSha = pr.head?.sha;
   if (!/^[a-f0-9]{40}$/i.test(baseSha || '') ||
-      pr.base?.repo?.full_name !== repository) {
-    throw new Error('Unverifiable PR base commit/repository');
+      !/^[a-f0-9]{40}$/i.test(headSha || '') ||
+      pr.base?.repo?.full_name !== repository ||
+      event.pull_request?.base?.sha !== baseSha ||
+      event.pull_request?.head?.sha !== headSha) {
+    throw new Error('Unverifiable or changed PR source/base identity');
   }
   const policyFile = await fetchJson(root + '/contents/' + POLICY_PATH +
     '?ref=' + encodeURIComponent(baseSha));
@@ -129,6 +133,10 @@ async function loadPrPlan(env, fetchJson) {
     if (items.length < 100) { exhausted = true; break; }
   }
   if (!exhausted) return fullPlan('PR change list exceeds safe pagination limit');
+  const after = await fetchJson(root + '/pulls/' + number);
+  if (after.head?.sha !== headSha || after.base?.sha !== baseSha) {
+    throw new Error('PR head or base changed during impact observation');
+  }
   return classify(files, policy);
 }
 
