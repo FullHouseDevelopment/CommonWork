@@ -40,7 +40,8 @@ async function fixture(options = {}) {
     GITHUB_EVENT_PATH: eventPath, INPUT_WORKFLOW: 'ci-develop.yml', GITHUB_RUN_ID: '999' };
   const pr = { number: 19, head: { sha: current, ref: 'feature/work' },
     base: { sha: base, ref: 'develop', repo: { full_name: repo } } };
-  const run = { id: 250, head_sha: previous, conclusion: options.result || 'success',
+  const run = { id: 250, head_sha: previous, status: options.status || 'completed',
+    conclusion: options.result || 'success',
     event: 'pull_request', path: '.github/workflows/ci-develop.yml',
     head_branch: 'feature/work',
     pull_requests: options.missingPrMetadata ? [] : [{ number: options.prNumber || 19,
@@ -76,8 +77,12 @@ test('same PR, base, ancestor, successful job and safe diff permits reuse', asyn
 test('failed job never becomes reusable evidence', async () => {
   assert.equal((await fixture({ jobResult: 'failure' })).decisions.python, false);
 });
-test('failed entire run cannot establish reuse', async () => {
-  assert.equal((await fixture({ result: 'failure' })).decisions.python, false);
+test('successful job in a completed failed run establishes reusable proof', async () => {
+  assert.equal((await fixture({ result: 'failure' })).decisions.python, true);
+});
+test('cancelled or incomplete run cannot establish reuse', async () => {
+  assert.equal((await fixture({ result: 'cancelled' })).decisions.python, false);
+  assert.equal((await fixture({ status: 'in_progress' })).decisions.python, false);
 });
 test('different PR or base cannot donate CI success', async () => {
   assert.equal((await fixture({ prNumber: 18 })).decisions.python, false);
