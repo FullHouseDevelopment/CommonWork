@@ -135,3 +135,43 @@ Policies are deliberately repository-specific. Cover shared/build/test inputs
 conservatively; any unclassified path makes CI full rather than allowing a false
 negative. Overrides are GitHub-authorized workflow dispatches, not PR-body
 commands.
+
+
+## Within-PR verified check reuse (opt-in)
+
+The standalone `.github/actions/ci-reuse` action is a **separate decision**
+from impact planning. A check may be required by impact but reuse a past
+successful execution within the **same PR** only if all of these hold:
+
+- Current PR source and base identity match the GitHub event.
+- The previous GitHub Actions run is successful, belongs to that PR, has
+  the same base commit/ref and workflow, and uses an ancestor head SHA.
+- The exact named job in that run completed successfully (not skipped).
+- GitHub's complete intervening diff contains only changes explicitly
+  marked safe for that check by the **trusted base-branch**
+  `.github/ci-reuse.json`. Renames check both names.
+- Unknown inputs, incomplete pagination, drift, API errors, missing proof,
+  or any PR targeting main/release branch conservatively trigger execution.
+
+Call the action from one lightweight job after the draft and impact guards,
+with `workflow` set to the caller entry point (for example `ci-develop.yml`),
+`GITHUB_TOKEN: ${{ github.token }}`, and `pull-requests: read` plus
+`actions: read` and `contents: read` permissions. Its outputs are
+`python`, `python_windows`, `control`, `dotnet_linux`,
+`dotnet_windows`, `python_reference`, and `reason`.
+
+Consumers add only a small policy listing each desired job's **exact GitHub
+Actions job name** and its known-safe changed paths. Unknown or broad paths
+must not be declared unrelated casually; test sources, workflow definitions,
+tool versions, dependency locks, and shared runtime inputs are relevant
+unless explicitly proven otherwise.
+
+A job is skipped only when this trusted action returns `true`. The fresh
+aggregate CI gate must accept that skip **only if it sees a successful reuse
+decision job and the exact corresponding proof output**. Reuse never changes
+GitHub's original check conclusion or fabricates a passing test execution.
+The default is *no reuse*, and the first adoption PR necessarily executes all
+required jobs because the base branch has no reuse policy yet.
+
+This intentionally does not include cross-PR, cross-branch, cross-repository,
+or release check reuse.
