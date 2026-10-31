@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { classify, fullPlan, globRegex, validatePolicy, loadPrPlan } = require('./plan');
+const { classify, fullPlan, globRegex, validatePolicy, loadPrPlan, releaseCandidateBase } = require('./plan');
 
 const groups = {
   workflow: ['.github/workflows/**', 'tests/*workflow*.py'],
@@ -105,4 +105,12 @@ test('PR head/base drift fails closed instead of accepting a stale file list', a
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
+});
+
+test('main and release PRs always run full validation', () => {
+  for (const branch of ['main', 'master', 'release/1.4', 'release-2026']) {
+    assert.equal(releaseCandidateBase(branch), true, branch);
+  }
+  assert.equal(releaseCandidateBase('develop'), false);
+  assert.equal(releaseCandidateBase('feature/csharp'), false);
 });
