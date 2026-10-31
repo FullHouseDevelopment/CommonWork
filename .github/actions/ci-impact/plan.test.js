@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { classify, fullPlan, globRegex, validatePolicy } = require('./plan');
+const { classify, fullPlan, globRegex, validatePolicy, loadPrPlan } = require('./plan');
 
 const groups = {
   workflow: ['.github/workflows/**', 'tests/*workflow*.py'],
@@ -66,4 +66,43 @@ test('full mode enables every execution group', () => {
 test('empty and oversized changes fail closed', () => {
   assert.equal(classify([], policy).full, true);
   assert.equal(classify(Array(3001).fill('docs/x.md'), policy).full, true);
+});
+
+test('PR head/base drift fails closed instead of accepting a stale file list', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-impact-'));
+  const eventPath = path.join(folder, 'event.json');
+  const head = 'a'.repeat(40);
+  const base = 'b'.repeat(40);
+  const root = '/repos/FullHouseDevelopment/AutoDev';
+  try {
+    fs.writeFileSync(eventPath, JSON.stringify({
+      pull_request: { number: 17, head: { sha: head }, base: { sha: base } },
+    }));
+    let prCalls = 0;
+    const get = async endpoint => {
+      if (endpoint === root + '/pulls/17') {
+        prCalls++;
+        return { base: { sha: base, repo: { full_name: 'FullHouseDevelopment/AutoDev' } },
+          head: { sha: prCalls === 1 ? head : 'c'.repeat(40) } };
+      }
+      if (endpoint.startsWith(root + '/contents/')) {
+        return { encoding: 'base64',
+          content: Buffer.from(JSON.stringify(policy)).toString('base64') };
+      }
+      if (endpoint.startsWith(root + '/pulls/17/files?')) {
+        return [{ filename: 'docs/README.md' }];
+      }
+      throw new Error('Unexpected test API call: ' + endpoint);
+    };
+    await assert.rejects(
+      () => loadPrPlan({ GITHUB_REPOSITORY: 'FullHouseDevelopment/AutoDev',
+        GITHUB_EVENT_PATH: eventPath }, get),
+      /PR head or base changed/,
+    );
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
 });
