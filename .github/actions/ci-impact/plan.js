@@ -49,6 +49,11 @@ function validatePolicy(policy) {
   return matchers;
 }
 
+function releaseCandidateBase(ref) {
+  return ref === 'main' || ref === 'master' ||
+    (typeof ref === 'string' && /^release[/-]/.test(ref));
+}
+
 function fullPlan(reason) {
   return { ...Object.fromEntries(GROUPS.map(group => [group, true])),
     full: true, reason };
@@ -164,9 +169,14 @@ async function main(env = process.env) {
     plan = fullPlan('Non-PR execution or explicit full-CI override');
   } else {
     try {
-      const api = env.GITHUB_API_URL || 'https://api.github.com';
-      if (!env.GITHUB_TOKEN) throw new Error('Missing GitHub token');
-      plan = await loadPrPlan(env, path => getJson(api, path, env.GITHUB_TOKEN));
+      const event = JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
+      if (releaseCandidateBase(event.pull_request?.base?.ref)) {
+        plan = fullPlan('PR targets main or a release-candidate branch');
+      } else {
+        const api = env.GITHUB_API_URL || 'https://api.github.com';
+        if (!env.GITHUB_TOKEN) throw new Error('Missing GitHub token');
+        plan = await loadPrPlan(env, path => getJson(api, path, env.GITHUB_TOKEN));
+      }
     } catch (error) {
       console.warn('Impact classifier unavailable; selecting full CI: ' + error.message);
       plan = fullPlan('Classifier error: ' + error.message);
@@ -183,5 +193,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = { GROUPS, POLICY_PATH, globRegex, validatePolicy,
+module.exports = { GROUPS, POLICY_PATH, globRegex, validatePolicy, releaseCandidateBase,
   classify, fullPlan, loadPrPlan, main };
