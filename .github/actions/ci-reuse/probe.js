@@ -78,7 +78,11 @@ async function probe(env, get) {
   const reasons = [];
   for (const run of runs.workflow_runs.slice(0, 50)) {
     if (CHECKS.every(id => decisions[id] || !policy[id])) break;
-    if (run.conclusion !== 'success' || run.event !== 'pull_request' ||
+    // Reuse belongs to a successful *job*, not necessarily to its workflow.
+    // An unrelated failed job must not discard valid per-job evidence.
+    if (run.status !== 'completed' ||
+        !['success', 'failure'].includes(run.conclusion) ||
+        run.event !== 'pull_request' ||
         !SHA.test(run.head_sha || '') || run.head_sha === head ||
         run.id === Number(env.GITHUB_RUN_ID) ||
         run.path !== '.github/workflows/' + workflow ||
