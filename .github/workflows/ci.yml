@@ -35,6 +35,7 @@ jobs:
           node --test .github/actions/version-policy/index.test.js
           node --test .github/actions/workflow-policy/index.test.js
           node --test .github/actions/ci-impact/plan.test.js
+          node --test .github/actions/ci-reuse/probe.test.js
 
       - name: Validate workflow policy
         uses: ./.github/actions/workflow-policy
