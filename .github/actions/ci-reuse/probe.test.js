@@ -43,13 +43,17 @@ async function fixture(options = {}) {
   const run = { id: 250, head_sha: previous, conclusion: options.result || 'success',
     event: 'pull_request', path: '.github/workflows/ci-develop.yml',
     head_branch: 'feature/work',
-    pull_requests: [{ number: options.prNumber || 19,
+    pull_requests: options.missingPrMetadata ? [] : [{ number: options.prNumber || 19,
       base: { sha: options.baseSha || base, ref: 'develop' } }] };
   const get = async p => {
     if (p === root + '/pulls/19') return pr;
     if (p.startsWith(root + '/contents/')) return { encoding: 'base64',
       content: Buffer.from(JSON.stringify(policy)).toString('base64') };
     if (p.startsWith(root + '/actions/workflows/')) return { workflow_runs: [run] };
+    if (p.startsWith(root + '/commits/') && p.endsWith('/pulls?per_page=100'))
+      return [{ number: options.prNumber || 19, base: { ref: 'develop' } }];
+    if (p === root + '/compare/' + base + '...' + previous) return {
+      status: options.movedBase ? 'diverged' : 'ahead', behind_by: options.movedBase ? 2 : 0 };
     if (p.startsWith(root + '/compare/')) return { status: 'ahead', ahead_by: 1,
       behind_by: 0, total_commits: 1, files: options.files ||
         [{ filename: 'src/AutoDev.Desktop/panel.cs' }] };
@@ -83,4 +87,12 @@ test('changed relevant inputs or workflow edits forbid reuse', async () => {
   for (const file of ['tests/test_a.py', '.github/workflows/ci.yml']) {
     assert.equal((await fixture({ files: [{ filename: file }] })).decisions.python, false);
   }
+});
+
+
+test('empty GitHub run PR metadata can be verified via associated commit', async () => {
+  assert.equal((await fixture({ missingPrMetadata: true })).decisions.python, true);
+});
+test('base branch movement invalidates old CI results', async () => {
+  assert.equal((await fixture({ movedBase: true })).decisions.python, false);
 });
