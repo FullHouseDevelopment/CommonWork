@@ -144,8 +144,10 @@ from impact planning. A check may be required by impact but reuse a past
 successful execution within the **same PR** only if all of these hold:
 
 - Current PR source and base identity match the GitHub event.
-- The previous GitHub Actions run is successful, belongs to that PR, has
-  the same base commit/ref and workflow, and uses an ancestor head SHA.
+- The previous GitHub Actions run is complete (success or failure), belongs to
+  that PR, has the same base commit/ref and workflow, and uses an ancestor head SHA.
+  The specific reusable job itself must have completed successfully; failures
+  in unrelated jobs do not invalidate that job's result.
 - The exact named job in that run completed successfully (not skipped).
 - GitHub's complete intervening diff contains only changes explicitly
   marked safe for that check by the **trusted base-branch**
