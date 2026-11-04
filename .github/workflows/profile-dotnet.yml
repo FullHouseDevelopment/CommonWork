@@ -60,6 +60,16 @@ on:
         description: Test command
         required: true
         type: string
+      integration_e2e_test_command:
+        description: Optional command selecting ONLY integration and end-to-end tests
+        required: false
+        type: string
+        default: ''
+      force_integration_e2e_tests:
+        description: Run integration/E2E tests on light tier too when explicitly requested
+        required: false
+        type: boolean
+        default: false
       lint_command:
         description: Optional analyzer/format command kept in light CI
         required: false
@@ -132,11 +142,23 @@ jobs:
         working-directory: ${{ inputs.working_directory }}
         run: ${{ inputs.build_command }}
 
-      - name: Test
+      - name: Unit tests
         shell: bash
         working-directory: ${{ inputs.working_directory }}
         run: ${{ inputs.test_command }}
 
+      - name: Integration and E2E tests
+        if: (inputs.tier == 'heavy' || inputs.force_integration_e2e_tests) && inputs.integration_e2e_test_command != ''
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.integration_e2e_test_command }}
+
+      - name: Reject missing forced integration/E2E command
+        if: inputs.force_integration_e2e_tests && inputs.integration_e2e_test_command == ''
+        shell: bash
+        run: |
+          echo "force_integration_e2e_tests requires integration_e2e_test_command" >&2
+          exit 1
       - name: Lint and analyzers
         if: inputs.lint_command != ''
         shell: bash
@@ -170,4 +192,6 @@ jobs:
             echo "- global.json: \`${{ inputs.global_json_file || '(not used)' }}\`"
             echo "- NuGet cache: \`${{ inputs.cache }}\`"
             echo "- Test results required: \`${{ inputs.test_results_path != '' }}\`"
+            echo "- Integration/E2E command configured: \`${{ inputs.integration_e2e_test_command != '' }}\`"
+            echo "- Integration/E2E executed: \`${{ inputs.integration_e2e_test_command != '' && (inputs.tier == 'heavy' || inputs.force_integration_e2e_tests) }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
